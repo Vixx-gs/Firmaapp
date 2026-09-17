@@ -65,13 +65,10 @@ const btnHome = document.getElementById('btn-home');
 const overlayScreens = [pendingScreen, profileScreen, registryScreen];
 
 // ---------- Logo: volver siempre a la pantalla de inicio ----------
+// Recarga completa (no solo cambio de estado en JS) para poder recuperarse
+// de una pantalla en blanco si algo falló en el estado de la SPA.
 btnHome.addEventListener('click', () => {
-  overlayScreens.forEach((s) => (s.hidden = true));
-  if (getSessionRole() === 'pablo') {
-    document.dispatchEvent(new CustomEvent('firma:pending'));
-    return;
-  }
-  if (!viewer.hidden) resetToDropzone();
+  window.location.href = '/';
 });
 
 // ---------- Firmantes del documento ----------

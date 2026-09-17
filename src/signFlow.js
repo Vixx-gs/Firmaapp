@@ -152,7 +152,18 @@ export async function startSignFlow(token) {
 
       signActive.hidden = true;
       signView.hidden = false;
-      statusText.textContent = 'Firma enviada correctamente. Ya puedes cerrar esta ventana.';
+
+      // Si quien firma es un usuario interno con sesión abierta (p. ej.
+      // Pablo firmando su casilla desde "Pendientes"), lo llevamos de
+      // vuelta a la app en vez de decirle que cierre la pestaña.
+      if (sessionStorage.getItem('firma_auth') === '1') {
+        statusText.textContent = 'Firma enviada correctamente. Volviendo a Pendientes…';
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1200);
+      } else {
+        statusText.textContent = 'Firma enviada correctamente. Ya puedes cerrar esta ventana.';
+      }
     } catch (err) {
       btnConfirm.disabled = false;
       btnConfirm.textContent = 'Firmar';
