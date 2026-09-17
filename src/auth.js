@@ -26,7 +26,7 @@ const btnLogout = document.getElementById('btn-logout');
 const userInitial = document.getElementById('user-initial');
 const btnUser = document.getElementById('btn-user');
 const userDropdown = document.getElementById('user-dropdown');
-const menuRegistry = document.getElementById('menu-registry');
+const menuMando = document.getElementById('menu-mando');
 
 function setUserInitial(username) {
   userInitial.textContent = (username || 'A').trim().charAt(0).toUpperCase() || 'A';
@@ -65,7 +65,7 @@ export function initAuth() {
     const savedUser = sessionStorage.getItem(USER_KEY);
     const savedRole = sessionStorage.getItem(ROLE_KEY) || 'admin';
     setUserInitial(savedUser);
-    menuRegistry.hidden = savedRole !== 'admin';
+    menuMando.hidden = savedRole !== 'admin';
     applyRoleUI(savedRole);
     showApp();
   } else {
@@ -83,7 +83,7 @@ export function initAuth() {
       sessionStorage.setItem(USER_KEY, match.username);
       sessionStorage.setItem(ROLE_KEY, match.role);
       setUserInitial(match.username);
-      menuRegistry.hidden = match.role !== 'admin';
+      menuMando.hidden = match.role !== 'admin';
       applyRoleUI(match.role);
       loginError.hidden = true;
       showApp();

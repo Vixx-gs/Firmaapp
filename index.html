@@ -72,12 +72,20 @@
               </svg>
               Pendientes
             </button>
-            <button id="menu-registry" class="user-dropdown-item" type="button" data-action="registry" hidden>
+            <button class="user-dropdown-item" type="button" data-action="registry">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
               </svg>
               Registro
+            </button>
+            <button id="menu-mando" class="user-dropdown-item" type="button" data-action="mando" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="14" rx="2" />
+                <path d="M8 21h8" />
+                <path d="M12 17v4" />
+              </svg>
+              Mando
             </button>
           </div>
         </div>
@@ -176,7 +184,7 @@
         </form>
       </section>
 
-      <!-- Registro de envíos y firmas (solo admin) -->
+      <!-- Registro personal: documentos que este usuario ha firmado -->
       <section id="registry-screen" class="registry-screen" hidden>
         <div class="hero">
           <button id="btn-registry-back" class="btn-back-link" type="button">
@@ -186,12 +194,48 @@
             </svg>
             Volver
           </button>
-          <span class="hero-pill">Solo admin</span>
+          <span class="hero-pill">Tu historial</span>
           <h1>Registro de firmas</h1>
-          <p>Documentos enviados a firmar, a quién y cuándo se enviaron y se firmaron.</p>
+          <p>Documentos que has firmado.</p>
         </div>
         <div class="registry-card">
           <table id="registry-table" class="registry-table">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Tu casilla</th>
+                <th>Firmado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="registry-body"></tbody>
+          </table>
+          <div id="registry-empty" class="registry-empty" hidden>
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <span>No hay documentos firmados todavía.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mando: todos los documentos firmados en la app (solo admin) -->
+      <section id="mando-screen" class="registry-screen" hidden>
+        <div class="hero">
+          <button id="btn-mando-back" class="btn-back-link" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <span class="hero-pill">Solo admin</span>
+          <h1>Mando</h1>
+          <p>Todos los documentos enviados a firmar en la app, a quién y cuándo se enviaron y se firmaron.</p>
+        </div>
+        <div class="registry-card">
+          <table id="mando-table" class="registry-table">
             <thead>
               <tr>
                 <th>Documento</th>
@@ -200,9 +244,9 @@
                 <th></th>
               </tr>
             </thead>
-            <tbody id="registry-body"></tbody>
+            <tbody id="mando-body"></tbody>
           </table>
-          <div id="registry-empty" class="registry-empty" hidden>
+          <div id="mando-empty" class="registry-empty" hidden>
             <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />

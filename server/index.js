@@ -277,16 +277,64 @@ app.post('/api/sign/:token', async (req, res) => {
   }
 });
 
-/** Descarga el PDF tal y como está ahora (sin firmas, con una, o con todas). */
+/**
+ * Descarga el PDF tal y como está ahora (sin firmas, con una, o con
+ * todas). El admin puede descargar cualquier documento; un firmante solo
+ * puede descargar uno que él mismo haya firmado (identificado por email).
+ */
 app.get('/api/documents/:id/download', async (req, res) => {
-  if (!requireAdmin(req, res)) return;
   const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
+
+  if (req.header('x-firma-role') !== 'admin') {
+    const email = (req.query.email || '').trim();
+    const signed = email
+      ? db
+          .prepare(
+            `SELECT 1 FROM signers s
+             JOIN send_log l ON l.signer_id = s.id
+             WHERE s.document_id = ? AND lower(s.email) = lower(?) AND l.signed_at IS NOT NULL`
+          )
+          .get(doc.id, email)
+      : null;
+    if (!signed) return res.status(403).json({ error: 'No autorizado.' });
+  }
 
   const pdfBytes = await readFile(doc.pdf_path);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${doc.filename}"`);
   res.send(pdfBytes);
+});
+
+/**
+ * Documentos que un usuario concreto (por email) ha firmado, para su
+ * "Registro" personal.
+ */
+app.get('/api/my-registry', (req, res) => {
+  const email = (req.query.email || '').trim();
+  if (!email) return res.status(400).json({ error: 'Falta el email.' });
+
+  const rows = db
+    .prepare(
+      `SELECT s.document_id as documentId, s.label as ownLabel, l.signed_at as ownSignedAt
+       FROM signers s
+       JOIN send_log l ON l.signer_id = s.id
+       WHERE lower(s.email) = lower(?) AND l.signed_at IS NOT NULL
+       ORDER BY l.signed_at DESC`
+    )
+    .all(email);
+
+  const documents = rows.map((row) => {
+    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(row.documentId);
+    return {
+      documentId: row.documentId,
+      documentName: doc?.filename || '—',
+      ownLabel: row.ownLabel,
+      ownSignedAt: row.ownSignedAt,
+    };
+  });
+
+  res.json({ documents });
 });
 
 /**

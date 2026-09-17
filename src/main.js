@@ -7,6 +7,7 @@ import { openSignerPicker } from './signerPicker.js';
 import { addSigner, resetSigners, getSigners } from './signers.js';
 import { getSignToken, startSignFlow } from './signFlow.js';
 import { loadRegistry } from './registry.js';
+import { loadMando } from './mando.js';
 import { loadPending } from './pending.js';
 
 const signToken = getSignToken();
@@ -60,9 +61,11 @@ const profileScreen = document.getElementById('profile-screen');
 const btnProfileBack = document.getElementById('btn-profile-back');
 const registryScreen = document.getElementById('registry-screen');
 const btnRegistryBack = document.getElementById('btn-registry-back');
+const mandoScreen = document.getElementById('mando-screen');
+const btnMandoBack = document.getElementById('btn-mando-back');
 const btnHome = document.getElementById('btn-home');
 
-const overlayScreens = [pendingScreen, profileScreen, registryScreen];
+const overlayScreens = [pendingScreen, profileScreen, registryScreen, mandoScreen];
 
 // ---------- Logo: volver siempre a la pantalla de inicio ----------
 // Recarga completa (no solo cambio de estado en JS) para poder recuperarse
@@ -106,9 +109,14 @@ document.addEventListener('firma:registry', () => {
   enterOverlayScreen(registryScreen);
   loadRegistry();
 });
+document.addEventListener('firma:mando', () => {
+  enterOverlayScreen(mandoScreen);
+  loadMando();
+});
 btnPendingBack.addEventListener('click', exitOverlayScreen);
 btnProfileBack.addEventListener('click', exitOverlayScreen);
 btnRegistryBack.addEventListener('click', exitOverlayScreen);
+btnMandoBack.addEventListener('click', exitOverlayScreen);
 
 // ---------- Carga del archivo ----------
 btnSelect.addEventListener('click', () => fileInput.click());
