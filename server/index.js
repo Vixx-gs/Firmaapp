@@ -282,45 +282,56 @@ app.get('/api/documents/:id/download', async (req, res) => {
 
 /**
  * Firmas pendientes/realizadas de un usuario concreto, identificado por su
- * email (el mismo que se le puso al añadirlo como firmante). Solo aparecen
- * documentos donde a ese email ya le ha tocado el turno de firmar (se le
- * ha notificado), junto con el estado de los demás firmantes para que
- * pueda ver si el anterior ya firmó.
+ * email (el mismo que se le puso al añadirlo como firmante). Se listan
+ * todos los documentos donde ese email es firmante, desde el momento en
+ * que el documento se envía (aunque todavía no le haya tocado el turno a
+ * él), junto con el estado de los demás firmantes. `token` solo viene
+ * relleno cuando ya se le ha notificado a él (es decir, ya puede firmar).
  */
 app.get('/api/pending', (req, res) => {
   const email = (req.query.email || '').trim();
   if (!email) return res.status(400).json({ error: 'Falta el email.' });
 
-  const logs = db
-    .prepare('SELECT * FROM send_log WHERE lower(email) = lower(?) ORDER BY sent_at DESC')
+  const ownSigners = db
+    .prepare('SELECT * FROM signers WHERE lower(email) = lower(?)')
     .all(email);
 
-  const result = logs.map((log) => {
-    const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(log.document_id);
-    const signers = db.prepare('SELECT * FROM signers WHERE document_id = ? ORDER BY seq').all(log.document_id);
-    const docLogs = db.prepare('SELECT * FROM send_log WHERE document_id = ?').all(log.document_id);
+  const result = ownSigners
+    .map((ownSigner) => {
+      const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(ownSigner.document_id);
+      if (!doc) return null;
 
-    const others = signers
-      .filter((s) => s.id !== log.signer_id)
-      .map((s) => {
-        const l = docLogs.find((x) => x.signer_id === s.id);
-        return {
-          label: s.label,
-          sentAt: l?.sent_at || null,
-          openedAt: l?.opened_at || null,
-          signedAt: l?.signed_at || null,
-        };
-      });
+      const signers = db
+        .prepare('SELECT * FROM signers WHERE document_id = ? ORDER BY seq')
+        .all(ownSigner.document_id);
+      const docLogs = db.prepare('SELECT * FROM send_log WHERE document_id = ?').all(ownSigner.document_id);
+      const ownLog = docLogs.find((l) => l.signer_id === ownSigner.id) || null;
 
-    return {
-      documentId: doc.id,
-      documentName: doc.filename,
-      token: log.token,
-      ownLabel: signers.find((s) => s.id === log.signer_id)?.label || null,
-      ownSignedAt: log.signed_at,
-      others,
-    };
-  });
+      // Sin enlace enviado a nadie todavía para este documento -> no mostrar.
+      if (docLogs.length === 0) return null;
+
+      const others = signers
+        .filter((s) => s.id !== ownSigner.id)
+        .map((s) => {
+          const l = docLogs.find((x) => x.signer_id === s.id);
+          return {
+            label: s.label,
+            sentAt: l?.sent_at || null,
+            openedAt: l?.opened_at || null,
+            signedAt: l?.signed_at || null,
+          };
+        });
+
+      return {
+        documentId: doc.id,
+        documentName: doc.filename,
+        token: ownLog?.token || null,
+        ownLabel: ownSigner.label,
+        ownSignedAt: ownLog?.signed_at || null,
+        others,
+      };
+    })
+    .filter(Boolean);
 
   res.json({ pending: result });
 });

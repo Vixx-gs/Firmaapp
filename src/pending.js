@@ -40,20 +40,31 @@ function renderItem(item) {
     .join('');
 
   const alreadySigned = Boolean(item.ownSignedAt);
+  const canSign = Boolean(item.token); // ya se le ha notificado, le toca a él
   card.innerHTML = `
     <div class="pending-card-head">
       <strong class="pending-doc-name" title="${item.documentName}">${item.documentName}</strong>
       <span class="pending-own-label">Tu casilla: ${item.ownLabel || '—'}</span>
     </div>
     <div class="pending-others">${others}</div>
-    <a class="btn btn-primary pending-sign-btn" href="/?sign=${item.token}">
-      ${alreadySigned ? 'Ya has firmado' : 'Firmar ahora'}
-    </a>
   `;
 
-  const signBtn = card.querySelector('.pending-sign-btn');
   if (alreadySigned) {
-    signBtn.classList.add('disabled');
+    const done = document.createElement('span');
+    done.className = 'registry-status signed';
+    done.textContent = 'Ya has firmado';
+    card.appendChild(done);
+  } else if (canSign) {
+    const link = document.createElement('a');
+    link.className = 'btn btn-primary pending-sign-btn';
+    link.href = `/?sign=${item.token}`;
+    link.textContent = 'Firmar ahora';
+    card.appendChild(link);
+  } else {
+    const waiting = document.createElement('span');
+    waiting.className = 'registry-status pending';
+    waiting.textContent = 'Aún no te toca firmar';
+    card.appendChild(waiting);
   }
 
   return card;
