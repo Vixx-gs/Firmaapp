@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { PDFDocument } from 'pdf-lib';
 import { db } from './db.js';
-import { sendSignRequestEmail } from './mailer.js';
+import { sendSignRequestEmail, sendCompletedDocumentEmail } from './mailer.js';
 import { sendSignRequestWhatsapp } from './whatsapp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -261,7 +261,30 @@ app.post('/api/sign/:token', async (req, res) => {
       }
     }
 
-    res.json({ ok: true, nextNotified, nextError });
+    // ¿Quedan campos sin firmar en este documento? Si no, ya está completo:
+    // se manda una copia final por email a todos los firmantes con email.
+    let completed = false;
+    const stillPending = db
+      .prepare('SELECT 1 FROM fields WHERE document_id = ? AND signed_at IS NULL')
+      .get(doc.id);
+    if (!stillPending) {
+      completed = true;
+      const allSigners = db.prepare('SELECT * FROM signers WHERE document_id = ?').all(doc.id);
+      const finalPdfBytes = await readFile(doc.pdf_path);
+      await Promise.all(
+        allSigners
+          .filter((s) => s.email)
+          .map((s) =>
+            sendCompletedDocumentEmail({
+              to: s.email,
+              documentName: doc.filename,
+              pdfBuffer: finalPdfBytes,
+            }).catch((err) => console.error(`No se pudo enviar copia final a ${s.email}:`, err.message))
+          )
+      );
+    }
+
+    res.json({ ok: true, nextNotified, nextError, completed });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message || 'Error al firmar el documento.' });
