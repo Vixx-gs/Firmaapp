@@ -1,0 +1,9 @@
+node_modules/
+dist/
+server/firma.db
+server/uploads/*
+!server/uploads/.gitkeep
+server/.env
+*.log
+.DS_Store
+.claude/

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Firma · Firma electrónica de documentos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Pantalla de inicio de sesión -->
+    <section id="login-screen" class="login-screen">
+      <form id="login-form" class="login-card" novalidate autocomplete="off">
+        <img src="/logo.png" alt="Firma" class="logo login-logo" />
+        <h1>Inicia sesión en Firma</h1>
+        <p class="login-sub">Accede para subir y firmar tus contratos.</p>
+
+        <label class="login-field">
+          <span>Usuario</span>
+          <input id="login-user" name="firma-user" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Introduce tu usuario" readonly onfocus="this.removeAttribute('readonly')" />
+        </label>
+        <label class="login-field">
+          <span>Contraseña</span>
+          <input id="login-pass" name="firma-pass" type="password" autocomplete="new-password" placeholder="Introduce tu contraseña" readonly onfocus="this.removeAttribute('readonly')" />
+        </label>
+
+        <p id="login-error" class="login-error" hidden>Usuario o contraseña incorrectos.</p>
+
+        <button type="submit" class="select-btn login-submit">Entrar</button>
+      </form>
+    </section>
+
+    <div id="app" hidden>
+    <header class="topbar">
+      <button id="btn-home" class="brand" type="button" title="Volver al inicio">
+        <img src="/logo.png" alt="Firma" class="logo" />
+        <div class="brand-text">
+          <span class="brand-name">Firma</span>
+          <span class="brand-tag">Firma electrónica</span>
+        </div>
+      </button>
+      <div class="actions">
+        <button id="btn-back" class="btn btn-icon" hidden title="Cambiar documento">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+          Cambiar documento
+        </button>
+        <button id="btn-confirm-fields" class="btn btn-primary" hidden>Confirmar</button>
+        <button id="btn-send" class="btn btn-primary" disabled>Enviar</button>
+
+        <div class="user-menu">
+          <button id="btn-user" class="user-avatar" type="button" aria-haspopup="true" aria-expanded="false" title="Cuenta">
+            <span id="user-initial">A</span>
+          </button>
+          <div id="user-dropdown" class="user-dropdown" hidden>
+            <button class="user-dropdown-item" type="button" data-action="documents">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </svg>
+              Documentos
+            </button>
+            <button class="user-dropdown-item" type="button" data-action="profile">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+              Perfil
+            </button>
+            <button class="user-dropdown-item" type="button" data-action="pending">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              Pendientes
+            </button>
+            <button id="menu-registry" class="user-dropdown-item" type="button" data-action="registry" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              Registro
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Pantalla de carga inicial -->
+      <section id="dropzone" class="dropzone">
+        <div class="hero">
+          <span class="hero-pill">Rápido · Seguro · Sin instalar nada</span>
+          <h1>Firma tus contratos en segundos</h1>
+          <p>Sube un PDF, marca dónde firmar y descárgalo firmado al instante.</p>
+        </div>
+        <div class="upload-card">
+          <div class="upload-row">
+            <button id="btn-select" class="select-btn" type="button">
+              Seleccionar archivo PDF
+            </button>
+            <div class="cloud-actions">
+              <button id="btn-drive" class="cloud-btn" type="button" title="Subir desde Google Drive" aria-label="Google Drive">
+                <svg viewBox="0 0 87.3 78" width="20" height="20" aria-hidden="true">
+                  <path fill="#fff" d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z"/>
+                  <path fill="#fff" d="M43.65 25L29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3L1.2 48.5C.4 49.9 0 51.45 0 53h27.5z"/>
+                  <path fill="#fff" d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z"/>
+                  <path fill="#fff" d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z"/>
+                  <path fill="#fff" d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z"/>
+                  <path fill="#fff" d="M73.4 26.5L60.75 4.5c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z"/>
+                </svg>
+              </button>
+              <button id="btn-dropbox" class="cloud-btn" type="button" title="Subir desde Dropbox" aria-label="Dropbox">
+                <svg viewBox="0 0 43 40" width="20" height="20" aria-hidden="true">
+                  <path fill="#fff" d="M12.6 0L0 8.1l8.7 7 12.8-7.9zM0 22.1l12.6 8.2 8.9-7.4-12.8-7.9zm21.5.8l8.9 7.4L43 22.1l-8.7-7zM43 8.1L30.4 0l-8.9 7.2 12.8 7.9zM21.5 24.5l-8.9 7.4-3.8-2.5v2.8l12.7 7.6 12.7-7.6v-2.8l-3.8 2.5z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p class="drop-hint">o arrastra y suelta el <span>PDF</span> aquí</p>
+        </div>
+        <input id="file-input" type="file" accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden />
+      </section>
+
+      <!-- Firmas pendientes -->
+      <section id="pending-screen" class="dropzone" hidden>
+        <div class="hero">
+          <button id="btn-pending-back" class="btn-back-link" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <span class="hero-pill">Firmas pendientes</span>
+          <h1>Pendientes de firma</h1>
+          <p>Aquí verás los documentos que estás esperando que firmen.</p>
+        </div>
+        <div id="pending-list" class="pending-list"></div>
+        <div id="pending-empty" class="upload-card pending-empty">
+          <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="pending-empty-icon" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6" />
+            <path d="M9 15l2 2 4-4" />
+          </svg>
+          <p id="pending-empty-text">No tienes firmas pendientes.</p>
+        </div>
+      </section>
+
+      <!-- Perfil -->
+      <section id="profile-screen" class="dropzone" hidden>
+        <div class="hero">
+          <button id="btn-profile-back" class="btn-back-link" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <span class="hero-pill">Tu cuenta</span>
+          <h1>Editar perfil</h1>
+          <p>Estos datos se usarán para identificarte dentro de la aplicación.</p>
+        </div>
+        <form id="profile-form" class="upload-card profile-form" novalidate>
+          <label class="login-field">
+            <span>Nombre</span>
+            <input id="profile-name" type="text" placeholder="Tu nombre completo" autocomplete="off" />
+          </label>
+          <label class="login-field">
+            <span>Teléfono</span>
+            <input id="profile-phone" type="tel" placeholder="+34 600 000 000" autocomplete="off" />
+          </label>
+          <label class="login-field">
+            <span>Email</span>
+            <input id="profile-email" type="email" placeholder="nombre@email.com" autocomplete="off" />
+          </label>
+          <button type="submit" class="select-btn profile-save">Guardar cambios</button>
+        </form>
+      </section>
+
+      <!-- Registro de envíos y firmas (solo admin) -->
+      <section id="registry-screen" class="registry-screen" hidden>
+        <div class="hero">
+          <button id="btn-registry-back" class="btn-back-link" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <span class="hero-pill">Solo admin</span>
+          <h1>Registro de firmas</h1>
+          <p>Documentos enviados a firmar, a quién y cuándo se enviaron y se firmaron.</p>
+        </div>
+        <div class="registry-card">
+          <table id="registry-table" class="registry-table">
+            <thead>
+              <tr>
+                <th>Documento</th>
+                <th>Firmantes</th>
+                <th>Enviado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="registry-body"></tbody>
+          </table>
+          <div id="registry-empty" class="registry-empty" hidden>
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <span>No hay envíos registrados todavía.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Visor del documento -->
+      <section id="viewer" class="viewer" hidden>
+        <div class="signers-bar">
+          <span class="signers-label">Añade destinatarios:</span>
+          <div id="signers-list" class="signers-list"></div>
+          <button id="btn-add-signer" class="btn-add-signer" type="button">+ Añadir firmantes</button>
+          <span id="placing-hint" class="placing-hint" hidden>Dibuja los recuadros para <strong id="placing-hint-signer"></strong> y pulsa Confirmar al terminar.</span>
+        </div>
+        <div class="viewer-row">
+          <div id="page-stage" class="page-stage"></div>
+          <aside id="thumb-rail" class="thumb-rail"></aside>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-left">
+        <button id="btn-logout" class="footer-logout" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <path d="M16 17l5-5-5-5" />
+            <path d="M21 12H9" />
+          </svg>
+          Salir
+        </button>
+        <div class="footer-brand">
+          <span class="footer-dot"></span>
+          Firma
+        </div>
+      </div>
+      <div class="footer-meta">
+        <span>Firma electrónica simple, rápida y segura</span>
+        <span class="footer-sep">·</span>
+        <span>© 2026 Victor Gallego Serrate</span>
+      </div>
+    </footer>
+    </div>
+
+    <!-- Firma externa vía enlace (?sign=token) -->
+    <section id="sign-view" class="login-screen" hidden>
+      <div class="login-card">
+        <img src="/logo.png" alt="Firma" class="logo login-logo" />
+        <h1>Firma electrónica</h1>
+        <p id="sign-status-text" class="login-sub">Cargando documento…</p>
+      </div>
+    </section>
+
+    <!-- Paso previo: nombre del firmante externo (el email ya se conoce) -->
+    <section id="sign-name-view" class="login-screen" hidden>
+      <form id="sign-name-form" class="login-card" novalidate>
+        <img src="/logo.png" alt="Firma" class="logo login-logo" />
+        <h1>Antes de firmar…</h1>
+        <p class="login-sub">Indícanos tu nombre para identificar la firma.</p>
+
+        <label class="login-field">
+          <span>Nombre completo</span>
+          <input id="sign-name-input" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" required />
+        </label>
+        <label class="login-field">
+          <span>Email</span>
+          <input id="sign-name-email" type="email" disabled />
+        </label>
+        <p id="sign-name-error" class="login-error" hidden>Escribe tu nombre para continuar.</p>
+
+        <button type="submit" class="select-btn login-submit">Continuar</button>
+      </form>
+    </section>
+
+    <section id="sign-active" class="viewer" hidden>
+      <div class="sign-topbar">
+        <div class="sign-topbar-info">
+          <strong id="sign-doc-name"></strong>
+          <span id="sign-signer-label" class="sign-signer-label"></span>
+        </div>
+        <button id="btn-sign-confirm" class="btn btn-grad" type="button" disabled>Firmar</button>
+      </div>
+      <div class="viewer-row">
+        <div id="sign-stage" class="page-stage"></div>
+      </div>
+    </section>
+
+    <!-- Modal de firma -->
+    <div id="sign-modal" class="modal" hidden>
+      <div class="modal-card">
+        <h2>Dibuja tu firma</h2>
+        <p class="modal-sub">Firma con el ratón o con el dedo en la pantalla.</p>
+
+        <div class="pad-tools">
+          <div class="tool-group">
+            <span class="tool-label">Color</span>
+            <div class="color-swatches">
+              <button class="color-swatch active" data-color="#0a1a3a" style="background:#0a1a3a" title="Tinta azul oscuro" aria-label="Tinta azul oscuro"></button>
+              <button class="color-swatch" data-color="#1d4ed8" style="background:#1d4ed8" title="Azul" aria-label="Azul"></button>
+              <button class="color-swatch" data-color="#0f172a" style="background:#0f172a" title="Negro" aria-label="Negro"></button>
+              <button class="color-swatch" data-color="#dc2626" style="background:#dc2626" title="Rojo" aria-label="Rojo"></button>
+              <label class="color-custom-wrap" title="Color personalizado">
+                <input type="color" id="color-custom" value="#0a1a3a" aria-label="Color personalizado" />
+              </label>
+            </div>
+          </div>
+
+          <div class="tool-group">
+            <span class="tool-label">Estilo</span>
+            <div class="style-options">
+              <button class="style-btn active" data-style="pen" type="button">Pluma</button>
+              <button class="style-btn" data-style="marker" type="button">Marcador</button>
+              <button class="style-btn" data-style="pencil" type="button">Lápiz</button>
+            </div>
+          </div>
+
+          <div class="tool-group tool-group-size">
+            <span class="tool-label">Tamaño</span>
+            <input type="range" id="size-range" min="1" max="5" step="1" value="2" aria-label="Tamaño del trazo" />
+          </div>
+        </div>
+
+        <div class="pad-wrap">
+          <canvas id="sign-pad"></canvas>
+        </div>
+        <div class="modal-actions">
+          <button id="btn-clear" class="btn btn-light">Borrar</button>
+          <div class="spacer"></div>
+          <button id="btn-cancel" class="btn btn-light">Cancelar</button>
+          <button id="btn-confirm" class="btn btn-grad">Insertar firma</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selector de firmante para un campo de firma -->
+    <div id="signer-picker" class="signer-picker" hidden></div>
+
+    <!-- Modal de datos del firmante -->
+    <div id="signer-modal" class="modal" hidden>
+      <div class="modal-card">
+        <h2 id="signer-modal-title">Datos del firmante</h2>
+        <p class="modal-sub">Necesitamos un email para poder enviarle el documento.</p>
+
+        <form id="signer-form" novalidate>
+          <label class="login-field">
+            <span>Email</span>
+            <input id="signer-email" type="email" placeholder="nombre@email.com" autocomplete="off" />
+          </label>
+          <label class="login-field signer-username-field">
+            <span>Usuario <span class="optional-mark">(opcional)</span></span>
+            <input id="signer-username" type="text" placeholder="Buscar usuario…" autocomplete="off" />
+            <div id="signer-suggestions" class="signer-suggestions" hidden></div>
+          </label>
+
+          <p id="signer-error" class="login-error" hidden>Rellena el email.</p>
+
+          <div class="modal-actions">
+            <button id="signer-cancel" type="button" class="btn btn-light">Cancelar</button>
+            <div class="spacer"></div>
+            <button type="submit" class="btn btn-grad">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <!-- Overlay de arrastre a pantalla completa -->
+    <div id="drag-overlay" class="drag-overlay" hidden>
+      <div class="drag-overlay-card">
+        <div class="drag-overlay-icon">📄</div>
+        <p>Suelta el archivo aquí</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
