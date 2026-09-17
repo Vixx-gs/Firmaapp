@@ -31,11 +31,6 @@ export function getSignToken() {
 export async function startSignFlow(token) {
   const signView = document.getElementById('sign-view');
   const statusText = document.getElementById('sign-status-text');
-  const signNameView = document.getElementById('sign-name-view');
-  const signNameForm = document.getElementById('sign-name-form');
-  const signNameInput = document.getElementById('sign-name-input');
-  const signNameEmail = document.getElementById('sign-name-email');
-  const signNameError = document.getElementById('sign-name-error');
   const signActive = document.getElementById('sign-active');
   const signStage = document.getElementById('sign-stage');
   const docNameEl = document.getElementById('sign-doc-name');
@@ -57,43 +52,6 @@ export async function startSignFlow(token) {
   if (data.alreadySigned) {
     statusText.textContent = 'Ya has firmado este documento. ¡Gracias!';
     return;
-  }
-
-  // Si aún no sabemos el nombre del firmante, se lo pedimos antes de nada
-  // (el email ya se conoce, lo puso el admin al añadirlo como firmante).
-  if (!data.signerName) {
-    signView.hidden = true;
-    signNameView.hidden = false;
-    signNameEmail.value = data.signerEmail || '';
-
-    await new Promise((resolve) => {
-      signNameForm.addEventListener('submit', async function onSubmit(e) {
-        e.preventDefault();
-        const name = signNameInput.value.trim();
-        if (!name) {
-          signNameError.hidden = false;
-          return;
-        }
-        signNameError.hidden = true;
-        const submitBtn = signNameForm.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        try {
-          const res = await fetch(`/api/sign/${token}/name`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name }),
-          });
-          const result = await res.json();
-          if (!res.ok) throw new Error(result.error || 'No se pudo guardar el nombre.');
-          signNameForm.removeEventListener('submit', onSubmit);
-          signNameView.hidden = true;
-          resolve();
-        } catch (err) {
-          submitBtn.disabled = false;
-          showToast(err.message);
-        }
-      });
-    });
   }
 
   signView.hidden = true;

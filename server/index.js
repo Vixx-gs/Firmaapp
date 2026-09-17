@@ -179,8 +179,6 @@ app.get('/api/sign/:token', async (req, res) => {
   res.json({
     documentName: doc.filename,
     signerLabel: signer.label,
-    signerName: signer.name || null,
-    signerEmail: signer.email || null,
     alreadySigned: Boolean(field.signed_at),
     pdfBase64: pdfBytes.toString('base64'),
     field: {
@@ -192,18 +190,6 @@ app.get('/api/sign/:token', async (req, res) => {
       cssScale: field.css_scale,
     },
   });
-});
-
-/** Guarda el nombre del firmante externo antes de dejarle firmar. */
-app.post('/api/sign/:token/name', (req, res) => {
-  const name = (req.body.name || '').trim();
-  if (!name) return res.status(400).json({ error: 'El nombre no puede estar vacío.' });
-
-  const log = db.prepare('SELECT * FROM send_log WHERE token = ?').get(req.params.token);
-  if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
-
-  db.prepare('UPDATE signers SET name = ? WHERE id = ?').run(name, log.signer_id);
-  res.json({ ok: true });
 });
 
 /**
