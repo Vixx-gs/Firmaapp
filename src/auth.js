@@ -27,7 +27,6 @@ const userInitial = document.getElementById('user-initial');
 const btnUser = document.getElementById('btn-user');
 const userDropdown = document.getElementById('user-dropdown');
 const menuRegistry = document.getElementById('menu-registry');
-const toast = document.getElementById('toast');
 
 function setUserInitial(username) {
   userInitial.textContent = (username || 'A').trim().charAt(0).toUpperCase() || 'A';
@@ -58,15 +57,6 @@ function openDropdown() {
 function closeDropdown() {
   userDropdown.hidden = true;
   btnUser.setAttribute('aria-expanded', 'false');
-}
-
-let toastTimer = null;
-function showAuthToast(msg) {
-  toast.textContent = msg;
-  toast.classList.remove('ok');
-  toast.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toast.hidden = true), 2600);
 }
 
 /** Comprueba la sesión guardada y engancha el formulario de login/logout. */
@@ -124,11 +114,7 @@ export function initAuth() {
     item.addEventListener('click', () => {
       closeDropdown();
       const action = item.dataset.action;
-      if (action === 'pending' || action === 'profile' || action === 'registry') {
-        document.dispatchEvent(new CustomEvent(`firma:${action}`));
-        return;
-      }
-      showAuthToast('Documentos: próximamente.');
+      document.dispatchEvent(new CustomEvent(`firma:${action}`));
     });
   });
 
