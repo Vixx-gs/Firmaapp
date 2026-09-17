@@ -6,13 +6,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { PDFDocument } from 'pdf-lib';
+import { db } from './db.js';
+import { sendSignRequestEmail } from './mailer.js';
+import { sendSignRequestWhatsapp } from './whatsapp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
-
-const { db } = await import('./db.js');
-const { sendSignRequestEmail } = await import('./mailer.js');
-const { sendSignRequestWhatsapp } = await import('./whatsapp.js');
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const DIST_DIR = path.join(__dirname, '..', 'dist');
