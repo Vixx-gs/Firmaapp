@@ -1176,9 +1176,6 @@ body.role-pablo #btn-back {
   transition: background 0.15s, border-color 0.15s;
 }
 .registry-download-btn:hover { background: var(--bg-2); border-color: var(--violet); }
-.registry-download-btn:disabled { opacity: 0.6; cursor: default; }
-a.registry-download-btn { text-decoration: none; }
-.registry-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 
 .registry-empty {
   display: flex;

@@ -60,11 +60,3 @@ const sendLogColumns = db.prepare("PRAGMA table_info(send_log)").all();
 if (!sendLogColumns.some((c) => c.name === 'opened_at')) {
   db.exec('ALTER TABLE send_log ADD COLUMN opened_at TEXT');
 }
-
-// Copia final en Google Drive (ver drive.js).
-const documentColumns = db.prepare('PRAGMA table_info(documents)').all();
-for (const col of ['drive_file_id', 'drive_url', 'drive_uploaded_at']) {
-  if (!documentColumns.some((c) => c.name === col)) {
-    db.exec(`ALTER TABLE documents ADD COLUMN ${col} TEXT`);
-  }
-}

@@ -57,24 +57,6 @@ async function downloadDocument(documentId, documentName) {
   }
 }
 
-async function uploadToDrive(documentId, btn) {
-  btn.disabled = true;
-  btn.textContent = 'Subiendo…';
-  try {
-    const res = await fetch(`/api/documents/${documentId}/drive`, {
-      method: 'POST',
-      headers: { 'x-firma-role': 'admin' },
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'No se pudo subir a Drive.');
-    loadMando();
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = 'Reintentar subida a Drive';
-    btn.title = err.message;
-  }
-}
-
 /** Carga y pinta la lista completa de documentos de la app (solo admin). */
 export async function loadMando() {
   bodyEl.innerHTML = '';
@@ -100,38 +82,19 @@ export async function loadMando() {
         <td><div class="registry-signers">${doc.signers.map(signerLine).join('')}</div></td>
         <td><span class="registry-date">${formatDate(firstSentAt)}</span></td>
         <td>
-          <div class="registry-actions">
-            <button type="button" class="registry-download-btn" data-role="download">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 3v12" />
-                <path d="M7 10l5 5 5-5" />
-                <path d="M5 21h14" />
-              </svg>
-              Descargar
-            </button>
-          </div>
+          <button type="button" class="registry-download-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="M7 10l5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+            Descargar
+          </button>
         </td>
       `;
-      tr.querySelector('[data-role="download"]').addEventListener('click', () =>
+      tr.querySelector('.registry-download-btn').addEventListener('click', () =>
         downloadDocument(doc.documentId, doc.documentName)
       );
-      const actions = tr.querySelector('.registry-actions');
-      if (doc.driveUrl) {
-        const link = document.createElement('a');
-        link.className = 'registry-download-btn';
-        link.href = doc.driveUrl;
-        link.target = '_blank';
-        link.rel = 'noopener';
-        link.textContent = 'Ver en Drive';
-        actions.appendChild(link);
-      } else if (doc.completed && data.driveConfigured) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'registry-download-btn';
-        btn.textContent = 'Subir a Drive';
-        btn.addEventListener('click', () => uploadToDrive(doc.documentId, btn));
-        actions.appendChild(btn);
-      }
       bodyEl.appendChild(tr);
     });
   } catch (err) {

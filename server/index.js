@@ -9,7 +9,6 @@ import { PDFDocument } from 'pdf-lib';
 import { db } from './db.js';
 import { sendSignRequestEmail, sendCompletedDocumentEmail } from './mailer.js';
 import { sendSignRequestWhatsapp } from './whatsapp.js';
-import { isDriveConfigured, uploadSignedPdf } from './drive.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -31,30 +30,6 @@ function nowIso() {
 function dataUrlToBytes(dataUrl) {
   const base64 = dataUrl.split(',')[1];
   return Buffer.from(base64, 'base64');
-}
-
-/** Un documento está completo cuando tiene campos y ninguno queda sin firmar. */
-function isDocumentCompleted(documentId) {
-  const total = db.prepare('SELECT COUNT(*) AS n FROM fields WHERE document_id = ?').get(documentId).n;
-  const pending = db
-    .prepare('SELECT COUNT(*) AS n FROM fields WHERE document_id = ? AND signed_at IS NULL')
-    .get(documentId).n;
-  return total > 0 && pending === 0;
-}
-
-/** Sube la copia final a Drive y guarda dónde quedó. No repite si ya se subió. */
-async function uploadToDrive(doc) {
-  if (doc.drive_file_id) return { driveUrl: doc.drive_url };
-
-  const pdfBuffer = await readFile(doc.pdf_path);
-  const file = await uploadSignedPdf({ name: `Firmado - ${doc.filename}`, pdfBuffer });
-  db.prepare('UPDATE documents SET drive_file_id = ?, drive_url = ?, drive_uploaded_at = ? WHERE id = ?').run(
-    file.id,
-    file.webViewLink || null,
-    nowIso(),
-    doc.id
-  );
-  return { driveUrl: file.webViewLink || null };
 }
 
 function requireAdmin(req, res) {
@@ -293,12 +268,6 @@ app.post('/api/sign/:token', async (req, res) => {
             }).catch((err) => console.error(`No se pudo enviar copia final a ${s.email}:`, err.message))
           )
       );
-
-      // Copia en Drive en segundo plano: no hace esperar a quien acaba de firmar,
-      // y si falla el admin puede reintentarla desde Mando.
-      if (isDriveConfigured()) {
-        uploadToDrive(doc).catch((err) => console.error('No se pudo subir a Drive:', err.message));
-      }
     }
 
     res.json({ ok: true, nextNotified, nextError, completed });
@@ -451,33 +420,12 @@ app.get('/api/registry', (req, res) => {
         documentId: doc.id,
         documentName: doc.filename,
         signers: signerStatuses,
-        completed: isDocumentCompleted(doc.id),
-        driveUrl: doc.drive_url || null,
       };
     })
     // Solo documentos que ya se han enviado a alguien.
     .filter((d) => d.signers.some((s) => s.sentAt));
 
-  res.json({ documents: result, driveConfigured: isDriveConfigured() });
-});
-
-/** Reintento manual (solo admin) de la copia en Drive de un documento ya firmado por todos. */
-app.post('/api/documents/:id/drive', async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
-  if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
-  if (!isDriveConfigured()) return res.status(400).json({ error: 'Google Drive no está configurado en el servidor.' });
-  if (!isDocumentCompleted(doc.id)) {
-    return res.status(409).json({ error: 'El documento aún no está firmado por todas las partes.' });
-  }
-
-  try {
-    const uploaded = await uploadToDrive(doc);
-    res.json({ ok: true, driveUrl: uploaded.driveUrl });
-  } catch (err) {
-    console.error('No se pudo subir a Drive:', err.message);
-    res.status(502).json({ error: 'No se pudo subir a Google Drive. Revisa los registros del servidor.' });
-  }
+  res.json({ documents: result });
 });
 
 // En producción, este mismo proceso sirve también el frontend ya compilado
