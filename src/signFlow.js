@@ -61,9 +61,6 @@ export async function startSignFlow(token) {
 
   const pages = await renderPdf(base64ToArrayBuffer(data.pdfBase64), signStage);
   const targetPage = pages[data.field.pageIndex];
-  pages.forEach((p, i) => {
-    p.wrapEl.hidden = i !== data.field.pageIndex;
-  });
 
   // Convierte la geometría guardada (capturada con la escala del admin) a
   // la escala con la que se ha renderizado la página en este dispositivo.
