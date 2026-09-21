@@ -448,8 +448,11 @@ body {
 
 .page-stage {
   flex: 1;
+  min-width: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
 }
 .page-wrap {
   position: relative;
@@ -531,20 +534,29 @@ body {
 }
 
 @media (max-width: 760px) {
-  .viewer { flex-direction: column-reverse; align-items: center; }
+  .viewer-row {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    padding: 12px 10px 80px;
+    gap: 14px;
+  }
   .thumb-rail {
     width: 100%;
     flex-direction: row;
+    justify-content: center;
     overflow-x: auto;
     overflow-y: visible;
     position: static;
     max-height: none;
+    padding: 10px 6px;
   }
-  .thumb-item { width: 64px; flex-shrink: 0; }
+  .thumb-item { width: 56px; flex-shrink: 0; }
+  /* Con una sola página las miniaturas sobran. */
+  .thumb-rail:has(.thumb-item:only-child) { display: none; }
 }
 
 .field-layer { position: absolute; inset: 0; }
-.field-layer.placing { cursor: crosshair; }
+.field-layer.placing { cursor: crosshair; touch-action: none; }
 
 /* ---------- Campo de firma ---------- */
 .sig-field {
@@ -631,9 +643,22 @@ body {
   padding: 14px 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
-.sign-topbar-info { display: flex; flex-direction: column; gap: 2px; }
-.sign-topbar-info strong { font-size: 15px; }
+.sign-topbar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.sign-topbar-info strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#btn-sign-confirm { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .sign-topbar { padding: 10px 12px; }
+  #btn-sign-confirm { padding: 10px 22px; font-size: 15px; }
+}
 .sign-signer-label { font-size: 13px; color: var(--muted); }
 .sig-field.sign-target { cursor: pointer; }
 
@@ -858,10 +883,31 @@ body {
 .toast.ok { background: linear-gradient(135deg, #059669, #10b981); }
 
 @media (max-width: 640px) {
-  .topbar { flex-wrap: wrap; }
-  .actions { width: 100%; }
-  .actions .btn { flex: 1; }
+  .topbar { flex-wrap: nowrap; padding: 10px 12px; gap: 8px; }
+  .brand { gap: 8px; min-width: 0; }
+  .logo { width: 34px; height: 34px; border-radius: 10px; }
+  .brand-name { font-size: 17px; }
   .brand-tag { display: none; }
+  .actions { gap: 6px; flex-wrap: nowrap; align-items: center; flex-shrink: 0; }
+  .actions .btn { padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .btn-label { display: none; }
+  .signers-bar { padding: 10px 12px; gap: 8px; }
+  .placing-hint { width: 100%; font-size: 12.5px; }
+  .footer { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px; font-size: 12px; }
+  .footer-meta { flex-wrap: wrap; }
+  .footer-sep { display: none; }
+  .modal { padding: 10px; }
+  .modal-card { padding: 18px; max-height: calc(100dvh - 20px); overflow-y: auto; }
+  .dropzone { padding: 28px 16px; }
+}
+@media (max-width: 420px) {
+  .brand-text { display: none; }
+}
+
+/* Zonas táctiles más grandes en pantallas de dedo. */
+@media (pointer: coarse) {
+  .sig-field .handle { width: 26px; height: 26px; bottom: -14px; right: -14px; }
+  .sig-field .remove { width: 30px; height: 30px; top: -15px; right: -15px; font-size: 16px; }
 }
 
 /* ---------- Pantalla de login ---------- */
