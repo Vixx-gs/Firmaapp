@@ -220,29 +220,6 @@ body {
 .select-btn:hover { filter: brightness(1.05); box-shadow: 0 16px 32px rgba(139, 92, 246, 0.55); }
 .select-btn:active { transform: translateY(1px); }
 
-.cloud-actions { display: flex; flex-direction: column; gap: 10px; }
-.cloud-btn {
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 14px;
-  background: var(--bg-2);
-  color: var(--violet);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  transition: transform 0.08s, background 0.15s, color 0.15s, box-shadow 0.15s;
-}
-.cloud-btn svg path { fill: currentColor; }
-.cloud-btn:hover {
-  background: var(--brand-grad);
-  color: #fff;
-  box-shadow: 0 8px 18px rgba(139, 92, 246, 0.4);
-}
-.cloud-btn:active { transform: translateY(1px); }
-
 .drop-hint { margin: 20px 0 0; color: var(--muted); font-size: 15px; }
 .drop-hint span { color: var(--pink); font-weight: 700; }
 

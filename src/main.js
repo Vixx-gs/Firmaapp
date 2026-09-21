@@ -42,8 +42,6 @@ let savedMainView = 'dropzone'; // 'dropzone' | 'viewer' — adónde volver al s
 // --- Elementos ---
 const dropzone = document.getElementById('dropzone');
 const btnSelect = document.getElementById('btn-select');
-const btnDrive = document.getElementById('btn-drive');
-const btnDropbox = document.getElementById('btn-dropbox');
 const fileInput = document.getElementById('file-input');
 const viewer = document.getElementById('viewer');
 const pageStage = document.getElementById('page-stage');
@@ -124,13 +122,6 @@ fileInput.addEventListener('change', (e) => {
   const file = e.target.files?.[0];
   if (file) loadFile(file);
 });
-
-btnDrive.addEventListener('click', () =>
-  showToast('Importar desde Google Drive: próximamente.')
-);
-btnDropbox.addEventListener('click', () =>
-  showToast('Importar desde Dropbox: próximamente.')
-);
 
 // ---------- Arrastrar y soltar en toda la ventana ----------
 const dragOverlay = document.getElementById('drag-overlay');
