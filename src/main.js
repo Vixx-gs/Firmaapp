@@ -9,6 +9,7 @@ import { getSignToken, startSignFlow } from './signFlow.js';
 import { loadRegistry } from './registry.js';
 import { loadMando } from './mando.js';
 import { loadPending } from './pending.js';
+import { pickFromDrive, pickFromDropbox, warmUpCloudImport } from './cloudImport.js';
 
 const signToken = getSignToken();
 
@@ -20,6 +21,7 @@ if (signToken) {
 } else {
   initAuth();
   initProfile();
+  warmUpCloudImport();
 
   // Pablo es firmante interno: entra directo en Pendientes, no en la zona
   // de subida de documentos (esa es solo para el admin).
@@ -125,12 +127,17 @@ fileInput.addEventListener('change', (e) => {
   if (file) loadFile(file);
 });
 
-btnDrive.addEventListener('click', () =>
-  showToast('Importar desde Google Drive: próximamente.')
-);
-btnDropbox.addEventListener('click', () =>
-  showToast('Importar desde Dropbox: próximamente.')
-);
+async function importFromCloud(pick) {
+  try {
+    const file = await pick();
+    if (file) await loadFile(file);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'No se pudo importar el documento.');
+  }
+}
+btnDrive.addEventListener('click', () => importFromCloud(pickFromDrive));
+btnDropbox.addEventListener('click', () => importFromCloud(pickFromDropbox));
 
 // ---------- Arrastrar y soltar en toda la ventana ----------
 const dragOverlay = document.getElementById('drag-overlay');
