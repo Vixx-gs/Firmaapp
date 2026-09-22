@@ -1040,6 +1040,45 @@ body {
   gap: 30px;
   width: 100%;
 }
+.registry-filters {
+  width: min(1280px, 100%);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: -14px;
+}
+.registry-filter-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+}
+.registry-filter-input:focus { outline: none; border-color: var(--violet); }
+.registry-filter-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.registry-filter-date input {
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.registry-load-more-wrap { display: flex; justify-content: center; padding: 16px 0 6px; }
+
 .registry-card {
   width: min(1280px, 100%);
   background: var(--surface);

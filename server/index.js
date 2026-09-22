@@ -468,42 +468,80 @@ app.get(
   })
 );
 
-/** Registro de envíos/firmas, agrupado por documento, solo para admin. */
+/**
+ * Registro de envíos/firmas, agrupado por documento, solo para admin.
+ * Paginado (20 por página con `offset`) y filtrable por nombre (`q`) y
+ * rango de fechas de envío (`from`/`to`, formato AAAA-MM-DD).
+ */
 app.get(
   '/api/registry',
   route(async (req, res) => {
     if (!requireAdmin(req, res)) return;
 
-    // Sin la columna `pdf`: el listado no debe cargar todos los archivos en memoria.
-    const documents = await all('SELECT id, filename, created_at FROM documents ORDER BY created_at DESC');
-    const signersByDoc = groupBy(await all('SELECT * FROM signers ORDER BY seq'), 'document_id');
-    const logsByDoc = groupBy(await all('SELECT * FROM send_log'), 'document_id');
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const q = (req.query.q || '').trim();
+    const from = (req.query.from || '').trim();
+    const to = (req.query.to || '').trim();
 
-    const result = documents
-      .map((doc) => {
-        const logs = logsByDoc[doc.id] || [];
-        const signerStatuses = (signersByDoc[doc.id] || []).map((s) => {
-          const log = logs.find((l) => l.signer_id === s.id);
-          return {
-            label: s.label,
-            email: s.email,
-            phone: s.phone,
-            sentAt: log?.sent_at || null,
-            openedAt: log?.opened_at || null,
-            signedAt: log?.signed_at || null,
-          };
-        });
+    // Solo documentos que ya se han enviado a alguien (tienen algún send_log).
+    const conditions = ['EXISTS (SELECT 1 FROM send_log l WHERE l.document_id = d.id)'];
+    const params = [];
+    if (q) {
+      params.push(`%${q}%`);
+      conditions.push(`d.filename ILIKE $${params.length}`);
+    }
+    if (from) {
+      params.push(from);
+      conditions.push(`d.created_at >= $${params.length}::date`);
+    }
+    if (to) {
+      params.push(to);
+      conditions.push(`d.created_at < ($${params.length}::date + interval '1 day')`);
+    }
+    const where = conditions.join(' AND ');
 
+    const total = (await one(`SELECT count(*)::int AS n FROM documents d WHERE ${where}`, params)).n;
+    const documents = await all(
+      `SELECT d.id, d.filename, d.created_at FROM documents d WHERE ${where}
+       ORDER BY d.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    const documentIds = documents.map((d) => d.id);
+    const signersByDoc = groupBy(
+      documentIds.length
+        ? await all('SELECT * FROM signers WHERE document_id = ANY($1) ORDER BY seq', [documentIds])
+        : [],
+      'document_id'
+    );
+    const logsByDoc = groupBy(
+      documentIds.length ? await all('SELECT * FROM send_log WHERE document_id = ANY($1)', [documentIds]) : [],
+      'document_id'
+    );
+
+    const result = documents.map((doc) => {
+      const logs = logsByDoc[doc.id] || [];
+      const signerStatuses = (signersByDoc[doc.id] || []).map((s) => {
+        const log = logs.find((l) => l.signer_id === s.id);
         return {
-          documentId: doc.id,
-          documentName: doc.filename,
-          signers: signerStatuses,
+          label: s.label,
+          email: s.email,
+          phone: s.phone,
+          sentAt: log?.sent_at || null,
+          openedAt: log?.opened_at || null,
+          signedAt: log?.signed_at || null,
         };
-      })
-      // Solo documentos que ya se han enviado a alguien.
-      .filter((d) => d.signers.some((s) => s.sentAt));
+      });
 
-    res.json({ documents: result });
+      return {
+        documentId: doc.id,
+        documentName: doc.filename,
+        signers: signerStatuses,
+      };
+    });
+
+    res.json({ documents: result, total, limit, offset, hasMore: offset + result.length < total });
   })
 );
 

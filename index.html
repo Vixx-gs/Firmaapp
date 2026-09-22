@@ -217,6 +217,18 @@
           <h1>Mando</h1>
           <p>Todos los documentos enviados a firmar en la app, a quién y cuándo se enviaron y se firmaron.</p>
         </div>
+        <div class="registry-filters">
+          <input id="mando-filter-q" type="search" placeholder="Buscar por nombre…" class="registry-filter-input" />
+          <label class="registry-filter-date">
+            Desde
+            <input id="mando-filter-from" type="date" />
+          </label>
+          <label class="registry-filter-date">
+            Hasta
+            <input id="mando-filter-to" type="date" />
+          </label>
+          <button id="mando-filter-clear" type="button" class="registry-download-btn">Limpiar filtros</button>
+        </div>
         <div class="registry-card">
           <table id="mando-table" class="registry-table">
             <thead>
@@ -235,6 +247,9 @@
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
             <span>No hay envíos registrados todavía.</span>
+          </div>
+          <div id="mando-load-more-wrap" class="registry-load-more-wrap" hidden>
+            <button id="mando-load-more" type="button" class="registry-download-btn">Mostrar más</button>
           </div>
         </div>
       </section>
