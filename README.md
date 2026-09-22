@@ -30,6 +30,14 @@ Para probar desde el móvil en la misma red: `npm run dev -- --host`.
 - `signature_pad` — lienzo de firma (ratón + táctil).
 - `pdf-lib` — incrustación de la firma en el PDF.
 - `vite` — servidor de desarrollo y build.
+- `express` + `pg` — API y almacenamiento en PostgreSQL (documentos, firmantes,
+  campos y registro de envíos; el PDF se guarda como `bytea` en la propia
+  base de datos, no en el disco). Configura `DATABASE_URL` en `server/.env`
+  (ver `server/.env.example`).
+
+Si vienes de una instalación antigua con SQLite (`server/firma.db` +
+`server/uploads/`), ejecuta una vez `npm run migrate:postgres` con
+`DATABASE_URL` ya configurado para copiar todo a PostgreSQL.
 
 ## Pendiente (siguientes fases)
 
