@@ -17,6 +17,11 @@ export function getSessionRole() {
   return sessionStorage.getItem(ROLE_KEY);
 }
 
+/** Usuario de login de la sesión activa (p. ej. 'Pablo'), o null si no hay sesión. */
+export function getSessionUser() {
+  return sessionStorage.getItem(USER_KEY);
+}
+
 /** true si el rol es un firmante interno (entra directo en Pendientes). */
 export function isInternalRole(role) {
   return INTERNAL_ROLES.includes(role);
