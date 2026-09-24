@@ -5,6 +5,14 @@ import { getProfile } from './profile.js';
 
 const KNOWN_USERS_KEY = 'firma_known_users';
 
+// Usuarios internos de la app (ver auth.js): siempre disponibles como
+// sugerencia al asignar firmante, aunque nunca se hayan usado antes en este
+// navegador. Su email se completa cuando ellos mismos lo rellenan en Perfil.
+const BUILTIN_USERS = [
+  { name: 'Pablo', email: '' },
+  { name: 'Comercial', email: '' },
+];
+
 const signersList = document.getElementById('signers-list');
 const modal = document.getElementById('signer-modal');
 const form = document.getElementById('signer-form');
@@ -21,13 +29,18 @@ let editingId = null;
 let editingIsNew = false; // true si el modal se abrió justo tras crear el firmante (addSigner)
 
 function getKnownUsers() {
+  let stored = [];
   try {
     const raw = JSON.parse(localStorage.getItem(KNOWN_USERS_KEY)) || [];
     // Compatibilidad con el formato antiguo (solo nombres, sin contacto).
-    return raw.map((u) => (typeof u === 'string' ? { name: u, email: '' } : u));
+    stored = raw.map((u) => (typeof u === 'string' ? { name: u, email: '' } : u));
   } catch {
-    return [];
+    stored = [];
   }
+  const extra = BUILTIN_USERS.filter(
+    (b) => !stored.some((u) => u.name.toLowerCase() === b.name.toLowerCase())
+  );
+  return [...stored, ...extra];
 }
 
 /** Guarda o actualiza el email asociado a un nombre de usuario. */

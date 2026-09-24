@@ -1,18 +1,25 @@
 // Credenciales fijas mientras no haya backend de usuarios.
 // role 'admin': sube documentos, asigna firmantes y ve el Registro completo.
-// role 'pablo': firmante interno (normalmente Firmante 2); entra directo en
-// Pendientes y solo puede consultar/firmar sus propias firmas.
+// Cualquier otro role es un firmante interno (normalmente Firmante 2); entra
+// directo en Pendientes y solo puede consultar/firmar sus propias firmas.
 const USERS = [
   { username: 'admin', password: 'Admin123$', role: 'admin' },
-  { username: 'Pablo', password: 'pablo234!', role: 'pablo' },
+  { username: 'Pablo', password: 'Pablo345!', role: 'pablo' },
+  { username: 'Comercial', password: 'Com852!', role: 'comercial' },
 ];
+const INTERNAL_ROLES = ['pablo', 'comercial'];
 const SESSION_KEY = 'firma_auth';
 const USER_KEY = 'firma_user';
 const ROLE_KEY = 'firma_role';
 
-/** Rol de la sesión activa ('admin' | 'pablo'), o null si no hay sesión. */
+/** Rol de la sesión activa ('admin' | 'pablo' | 'comercial'), o null si no hay sesión. */
 export function getSessionRole() {
   return sessionStorage.getItem(ROLE_KEY);
+}
+
+/** true si el rol es un firmante interno (entra directo en Pendientes). */
+export function isInternalRole(role) {
+  return INTERNAL_ROLES.includes(role);
 }
 
 const loginScreen = document.getElementById('login-screen');
@@ -33,7 +40,7 @@ function setUserInitial(username) {
 }
 
 function applyRoleUI(role) {
-  document.body.classList.toggle('role-pablo', role === 'pablo');
+  document.body.classList.toggle('role-pablo', INTERNAL_ROLES.includes(role));
 }
 
 function showApp() {
