@@ -1,5 +1,5 @@
 import './style.css';
-import { initAuth, getSessionRole, isInternalRole } from './auth.js';
+import { initAuth } from './auth.js';
 import { initProfile } from './profile.js';
 import { renderPdf } from './pdfViewer.js';
 import { SignatureField } from './fields.js';
@@ -20,12 +20,6 @@ if (signToken) {
 } else {
   initAuth();
   initProfile();
-
-  // Los firmantes internos entran directo en Pendientes, no en la zona
-  // de subida de documentos (esa es solo para el admin).
-  document.addEventListener('firma:loggedIn', (e) => {
-    if (isInternalRole(e.detail.role)) document.dispatchEvent(new CustomEvent('firma:pending'));
-  });
 }
 
 // --- Estado ---
@@ -89,11 +83,6 @@ function enterOverlayScreen(screenEl) {
 
 function exitOverlayScreen() {
   overlayScreens.forEach((s) => (s.hidden = true));
-  if (isInternalRole(getSessionRole())) {
-    pendingScreen.hidden = false;
-    loadPending();
-    return;
-  }
   if (savedMainView === 'viewer') viewer.hidden = false;
   else dropzone.hidden = false;
 }
@@ -437,8 +426,3 @@ function showToast(msg, ok = false) {
   toastTimer = setTimeout(() => (toast.hidden = true), 2600);
 }
 
-// Si ya había sesión de Pablo abierta (recarga de página), aterriza
-// directamente en Pendientes en vez de la zona de subida de documentos.
-if (!signToken && isInternalRole(getSessionRole())) {
-  document.dispatchEvent(new CustomEvent('firma:pending'));
-}
