@@ -24,12 +24,13 @@ const modal = document.getElementById('signer-modal');
 const form = document.getElementById('signer-form');
 const titleEl = document.getElementById('signer-modal-title');
 const emailInput = document.getElementById('signer-email');
+const phoneInput = document.getElementById('signer-phone');
 const userInput = document.getElementById('signer-username');
 const suggestionsEl = document.getElementById('signer-suggestions');
 const errorEl = document.getElementById('signer-error');
 const btnCancel = document.getElementById('signer-cancel');
 
-let signers = []; // { id, label, email, username }
+let signers = []; // { id, label, email, phone, username }
 let signerSeq = 0;
 let editingId = null;
 let editingIsNew = false; // true si el modal se abrió justo tras crear el firmante (addSigner)
@@ -128,6 +129,7 @@ function openModal(signer, { isNew = false } = {}) {
   editingIsNew = isNew;
   titleEl.textContent = `Datos de ${signer.label}`;
   emailInput.value = signer.email || '';
+  phoneInput.value = signer.phone || '';
   userInput.value = signer.username || '';
   errorEl.hidden = true;
   suggestionsEl.hidden = true;
@@ -170,9 +172,13 @@ form.addEventListener('submit', (e) => {
     return;
   }
 
+  const rawPhone = phoneInput.value.replace(/\s/g, '');
+  const fullPhone = rawPhone ? `+34${rawPhone.replace(/^\+34/, '')}` : '';
+
   const signer = signers.find((s) => s.id === editingId);
   if (!signer) return;
   signer.email = finalEmail;
+  signer.phone = fullPhone;
   signer.username = username;
   if (username) rememberUser(username, finalEmail);
 
@@ -221,7 +227,7 @@ function relabelSigners() {
 /** Crea un nuevo firmante, lo añade como chip y abre su card de datos. */
 export function addSigner() {
   signerSeq++;
-  const signer = { id: signerSeq, label: `Firmante ${signers.length + 1}`, email: '', username: '' };
+  const signer = { id: signerSeq, label: `Firmante ${signers.length + 1}`, email: '', phone: '', username: '' };
   signers.push(signer);
   renderChip(signer);
   openModal(signer, { isNew: true });

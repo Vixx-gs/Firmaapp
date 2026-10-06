@@ -449,6 +449,13 @@
             <span>Email</span>
             <input id="signer-email" type="email" placeholder="nombre@email.com" autocomplete="off" />
           </label>
+          <label class="login-field">
+            <span>Teléfono <span class="optional-mark">(opcional)</span></span>
+            <div class="phone-input-wrap">
+              <span class="phone-prefix">🇪🇸 +34</span>
+              <input id="signer-phone" type="tel" placeholder="600 000 000" autocomplete="off" inputmode="numeric" />
+            </div>
+          </label>
           <label class="login-field signer-username-field">
             <span>Usuario <span class="optional-mark">(opcional)</span></span>
             <input id="signer-username" type="text" placeholder="Buscar usuario…" autocomplete="off" />
@@ -467,6 +474,12 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
+    <!-- Banner WhatsApp: aparece tras enviar si hay firmantes con teléfono -->
+    <div id="whatsapp-banner" class="whatsapp-banner" hidden>
+      <p class="whatsapp-banner-text">¿Quieres avisar también por WhatsApp?</p>
+      <div id="whatsapp-banner-btns" class="whatsapp-banner-btns"></div>
+      <button id="whatsapp-banner-close" class="whatsapp-banner-close" type="button" aria-label="Cerrar">✕</button>
+    </div>
 
     <!-- Overlay de arrastre a pantalla completa -->
     <div id="drag-overlay" class="drag-overlay" hidden>

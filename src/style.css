@@ -1217,6 +1217,26 @@ body.role-pablo #btn-back {
 }
 .registry-download-btn:hover { background: var(--bg-2); border-color: var(--violet); }
 
+.mando-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mando-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  border: 1px solid #fca5a5;
+  background: #fff5f5;
+  color: #dc2626;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+  white-space: nowrap;
+}
+.mando-delete-btn:hover { background: #fee2e2; }
+
 .registry-empty {
   display: flex;
   flex-direction: column;
@@ -1231,6 +1251,99 @@ body.role-pablo #btn-back {
 
 @media (max-width: 760px) {
   .registry-doc { max-width: 180px; }
+}
+
+/* ── Campo teléfono con prefijo ──────────────────────────────────────────── */
+.phone-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+  transition: border-color .15s, box-shadow .15s;
+}
+.phone-input-wrap:focus-within {
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(139,92,246,.15);
+}
+.phone-prefix {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+  height: 44px;
+}
+.phone-input-wrap input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--text);
+  height: 44px;
+  font-family: inherit;
+}
+
+/* ── Banner WhatsApp ─────────────────────────────────────────────────────── */
+.whatsapp-banner {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: #fff;
+  border: 1.5px solid #25d366;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  padding: 18px 20px 16px;
+  max-width: min(500px, calc(100vw - 32px));
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.whatsapp-banner-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+  padding-right: 24px;
+}
+.whatsapp-banner-btns { display: flex; flex-direction: column; gap: 8px; }
+.whatsapp-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #25d366;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 13px 18px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background .15s;
+}
+.whatsapp-btn:hover { background: #1ebe5c; }
+.whatsapp-banner-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
 }
 
 /* ── Pantalla Usuarios ───────────────────────────────────────────────────── */
