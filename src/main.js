@@ -416,7 +416,7 @@ btnSend.addEventListener('click', async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo enviar el documento.');
     showToast(`Enlace de firma enviado a ${data.sentTo} (email)`, true);
-    showWhatsAppBanner(getSigners().filter((s) => s.phone));
+    showWhatsAppBanner(getSigners().filter((s) => s.phone), data.signLink);
   } catch (err) {
     console.error(err);
     showToast(err.message);
@@ -430,22 +430,25 @@ const whatsappBanner = document.getElementById('whatsapp-banner');
 const whatsappBannerBtns = document.getElementById('whatsapp-banner-btns');
 const whatsappBannerClose = document.getElementById('whatsapp-banner-close');
 
-const WA_MESSAGE = encodeURIComponent(
-  'Hola buenos dias, le he enviado un correo con la documentacion a firmar. Porfavor reviselo lo antes posible. Un saludo'
-);
-
 whatsappBannerClose.addEventListener('click', () => {
   whatsappBanner.hidden = true;
 });
 
-function showWhatsAppBanner(signersWithPhone) {
+function buildWaMessage(signLink) {
+  const base = 'Hola buenos dias, le he enviado un correo con la documentacion a firmar. Porfavor reviselo lo antes posible. Un saludo';
+  if (!signLink) return base;
+  return `${base}\n\nSi desea consultarlo o firmarlo directamente, acceda a este link: ${signLink}`;
+}
+
+function showWhatsAppBanner(signersWithPhone, signLink) {
   if (!signersWithPhone.length) return;
+  const waMessage = encodeURIComponent(buildWaMessage(signLink));
   whatsappBannerBtns.innerHTML = '';
   signersWithPhone.forEach((s) => {
     const phone = s.phone.replace(/[^+\d]/g, '');
     const a = document.createElement('a');
     a.className = 'whatsapp-btn';
-    a.href = `https://wa.me/${phone}?text=${WA_MESSAGE}`;
+    a.href = `https://wa.me/${phone}?text=${waMessage}`;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.innerHTML = `

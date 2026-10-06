@@ -211,9 +211,9 @@ app.post(
       email: firstSigner.email || null,
       phone: null,
     };
-    const { channels } = await notifySigner(documentRow, firstSignerRow);
+    const { token, channels } = await notifySigner(documentRow, firstSignerRow);
 
-    res.json({ ok: true, sentTo: firstSigner.email, channels });
+    res.json({ ok: true, sentTo: firstSigner.email, channels, signLink: `${PUBLIC_URL}/?sign=${token}` });
   })
 );
 
@@ -397,6 +397,18 @@ app.get(
     res.attachment(doc.filename);
     res.type('application/pdf');
     res.send(doc.pdf);
+  })
+);
+
+/** DELETE /api/documents/:id  — elimina un documento y todo lo asociado (solo admin). */
+app.delete(
+  '/api/documents/:id',
+  route(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const doc = await one('SELECT id FROM documents WHERE id = $1', [req.params.id]);
+    if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
+    await run('DELETE FROM documents WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
   })
 );
 
