@@ -5,13 +5,19 @@ import { getProfile } from './profile.js';
 
 const KNOWN_USERS_KEY = 'firma_known_users';
 
-// Usuarios internos de la app (ver auth.js): siempre disponibles como
-// sugerencia al asignar firmante, aunque nunca se hayan usado antes en este
-// navegador. Su email se completa cuando ellos mismos lo rellenan en Perfil.
-const BUILTIN_USERS = [
-  { name: 'Pablo', email: '' },
-  { name: 'Comercial', email: '' },
-];
+// Usuarios del sistema cargados desde la API (se refrescan al abrir el modal).
+let appUsers = [];
+
+async function fetchAppUsers() {
+  try {
+    const res = await fetch('/api/users', { headers: { 'x-firma-role': 'admin' } });
+    if (!res.ok) return;
+    const data = await res.json();
+    appUsers = (data.users || []).map((u) => ({ name: u.username, email: '' }));
+  } catch {
+    // sin conexión o sin permisos: no pasa nada, se queda vacío
+  }
+}
 
 const signersList = document.getElementById('signers-list');
 const modal = document.getElementById('signer-modal');
@@ -37,7 +43,8 @@ function getKnownUsers() {
   } catch {
     stored = [];
   }
-  const extra = BUILTIN_USERS.filter(
+  // Añade los usuarios del sistema que no estén ya en el historial local.
+  const extra = appUsers.filter(
     (b) => !stored.some((u) => u.name.toLowerCase() === b.name.toLowerCase())
   );
   return [...stored, ...extra];
@@ -126,6 +133,8 @@ function openModal(signer, { isNew = false } = {}) {
   suggestionsEl.hidden = true;
   modal.hidden = false;
   emailInput.focus();
+  // Refresca la lista de usuarios del sistema cada vez que se abre el modal.
+  fetchAppUsers();
 }
 
 function closeModal() {
