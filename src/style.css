@@ -1293,6 +1293,79 @@ body.role-pablo #btn-back {
   font-family: inherit;
 }
 
+/* ── Selector de país (botón) ─────────────────────────────────────────────── */
+.phone-country-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  height: 44px;
+  background: var(--bg-2);
+  border: none;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+.phone-country-btn:hover { background: var(--bg-3, #f3f4f6); }
+.phone-country-arrow { flex-shrink: 0; opacity: .6; transition: transform .15s; }
+.phone-country-btn[aria-expanded="true"] .phone-country-arrow { transform: rotate(180deg); }
+
+/* ── Dropdown de países ───────────────────────────────────────────────────── */
+.phone-input-wrap { position: relative; }
+.phone-country-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 9999;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  width: 260px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.phone-country-search {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  font-size: 14px;
+  background: var(--bg-2);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.phone-country-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.phone-country-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text);
+}
+.phone-country-option:hover,
+.phone-country-option.selected { background: rgba(139,92,246,.1); }
+.phone-country-option.selected { font-weight: 600; }
+.pco-flag { font-size: 18px; flex-shrink: 0; }
+.pco-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pco-dial { font-size: 12px; color: var(--text-muted, #9ca3af); flex-shrink: 0; }
+
 /* ── Banner WhatsApp ─────────────────────────────────────────────────────── */
 .whatsapp-banner {
   position: fixed;

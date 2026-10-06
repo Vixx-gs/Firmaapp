@@ -2,6 +2,7 @@
 // autocompletar el campo "Usuario" como un buscador de contactos (estilo
 // "Para:" de email) y para poder reutilizar sus datos de contacto.
 import { getProfile } from './profile.js';
+import { getFullPhone, resetPhoneCountry, setPhoneValue } from './phoneCountry.js';
 
 const KNOWN_USERS_KEY = 'firma_known_users';
 
@@ -129,7 +130,13 @@ function openModal(signer, { isNew = false } = {}) {
   editingIsNew = isNew;
   titleEl.textContent = `Datos de ${signer.label}`;
   emailInput.value = signer.email || '';
-  phoneInput.value = signer.phone || '';
+  phoneInput.value = '';
+  setPhoneValue(signer.phone || '');
+  // Si tiene teléfono guardado, muestra solo la parte local (sin prefijo)
+  if (signer.phone) {
+    const raw = signer.phone.replace(/^\+\d{1,4}/, '');
+    phoneInput.value = raw;
+  }
   userInput.value = signer.username || '';
   errorEl.hidden = true;
   suggestionsEl.hidden = true;
@@ -144,6 +151,7 @@ function closeModal() {
   suggestionsEl.hidden = true;
   editingId = null;
   editingIsNew = false;
+  resetPhoneCountry();
 }
 
 btnCancel.addEventListener('click', closeModal);
@@ -172,8 +180,7 @@ form.addEventListener('submit', (e) => {
     return;
   }
 
-  const rawPhone = phoneInput.value.replace(/\s/g, '');
-  const fullPhone = rawPhone ? `+34${rawPhone.replace(/^\+34/, '')}` : '';
+  const fullPhone = getFullPhone(phoneInput.value);
 
   const signer = signers.find((s) => s.id === editingId);
   if (!signer) return;
