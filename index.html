@@ -79,6 +79,15 @@
               </svg>
               Registro
             </button>
+            <button id="menu-usuarios" class="user-dropdown-item" type="button" data-action="usuarios" hidden>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9" cy="7" r="4" />
+                <path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                <path d="M21 21v-2a4 4 0 0 0-3-3.85" />
+              </svg>
+              Usuarios
+            </button>
             <button id="menu-mando" class="user-dropdown-item" type="button" data-action="mando" hidden>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="14" rx="2" />
@@ -250,6 +259,70 @@
           </div>
           <div id="mando-load-more-wrap" class="registry-load-more-wrap" hidden>
             <button id="mando-load-more" type="button" class="registry-download-btn">Mostrar más</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Usuarios: gestión de usuarios (solo admin) -->
+      <section id="usuarios-screen" class="registry-screen" hidden>
+        <div class="hero">
+          <button id="btn-usuarios-back" class="btn-back-link" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" />
+              <path d="M12 19l-7-7 7-7" />
+            </svg>
+            Volver
+          </button>
+          <span class="hero-pill">Solo admin</span>
+          <h1>Usuarios</h1>
+          <p>Añade o elimina usuarios de la app. El admin no puede gestionarse a sí mismo.</p>
+        </div>
+
+        <!-- Formulario para añadir usuario -->
+        <div class="registry-card usuarios-add-card">
+          <h2 class="usuarios-add-title">Nuevo usuario</h2>
+          <form id="usuarios-form" class="usuarios-form">
+            <div class="usuarios-fields">
+              <label class="usuarios-field">
+                <span>Usuario</span>
+                <input id="usuarios-username" type="text" autocomplete="off" placeholder="Nombre de usuario" required />
+              </label>
+              <label class="usuarios-field">
+                <span>Contraseña</span>
+                <input id="usuarios-password" type="password" autocomplete="new-password" placeholder="Contraseña" required />
+              </label>
+              <label class="usuarios-field">
+                <span>Rol</span>
+                <select id="usuarios-role">
+                  <option value="user">Usuario</option>
+                  <option value="comercial">Comercial</option>
+                </select>
+              </label>
+            </div>
+            <p id="usuarios-error" class="login-error" hidden></p>
+            <button id="usuarios-add-btn" type="submit" class="btn btn-primary">Añadir usuario</button>
+          </form>
+        </div>
+
+        <!-- Lista de usuarios -->
+        <div class="registry-card">
+          <table class="registry-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th>Alta</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="usuarios-list"></tbody>
+          </table>
+          <div id="usuarios-empty" class="registry-empty" hidden>
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+            </svg>
+            <span>No hay usuarios todavía.</span>
           </div>
         </div>
       </section>

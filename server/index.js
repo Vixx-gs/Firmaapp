@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { randomUUID } from 'node:crypto';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
@@ -8,6 +9,28 @@ import { PDFDocument } from 'pdf-lib';
 import { all, one, run, withTransaction, initSchema } from './db.js';
 import { sendSignRequestEmail, sendCompletedDocumentEmail } from './mailer.js';
 import { sendSignRequestWhatsapp } from './whatsapp.js';
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+async function seedUsers() {
+  const SEEDS = [
+    { username: 'admin', password: process.env.ADMIN_PASSWORD || 'Admin123$', role: 'admin' },
+    { username: 'Pablo', password: process.env.PABLO_PASSWORD || 'Pablo345!', role: 'pablo' },
+    { username: 'Comercial', password: process.env.COMERCIAL_PASSWORD || 'Com852!', role: 'comercial' },
+  ];
+  for (const u of SEEDS) {
+    const existing = await one('SELECT id FROM users WHERE lower(username) = lower($1)', [u.username]);
+    if (!existing) {
+      await run(
+        'INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)',
+        [randomUUID(), u.username, hashPassword(u.password), u.role]
+      );
+      console.log(`Usuario ${u.username} creado.`);
+    }
+  }
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -547,6 +570,69 @@ app.get(
 
 // En producción, este mismo proceso sirve también el frontend ya compilado
 // (carpeta dist/ generada con `npm run build`), para no necesitar un
+// ── Gestión de usuarios (solo admin) ─────────────────────────────────────────
+
+/** POST /api/auth/login  { username, password } → { role, username } */
+app.post(
+  '/api/auth/login',
+  route(async (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales.' });
+    const user = await one(
+      'SELECT username, role FROM users WHERE lower(username)=lower($1) AND password_hash=$2',
+      [username.trim(), hashPassword(password)]
+    );
+    if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+    res.json({ username: user.username, role: user.role });
+  })
+);
+
+/** GET /api/users → [{ id, username, role, createdAt }]  (solo admin) */
+app.get(
+  '/api/users',
+  route(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const rows = await all(
+      "SELECT id, username, role, created_at AS \"createdAt\" FROM users WHERE role <> 'admin' ORDER BY created_at DESC"
+    );
+    res.json({ users: rows });
+  })
+);
+
+/** POST /api/users  { username, password, role }  (solo admin, nunca role=admin) */
+app.post(
+  '/api/users',
+  route(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const { username, password, role } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Faltan username y password.' });
+    if (!role || role === 'admin') return res.status(400).json({ error: 'Rol no válido.' });
+    const trimmed = username.trim();
+    if (trimmed.toLowerCase() === 'admin') return res.status(400).json({ error: 'Nombre reservado.' });
+    const exists = await one('SELECT id FROM users WHERE lower(username)=$1', [trimmed.toLowerCase()]);
+    if (exists) return res.status(409).json({ error: 'El usuario ya existe.' });
+    const id = randomUUID();
+    await run(
+      'INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)',
+      [id, trimmed, hashPassword(password), role]
+    );
+    res.status(201).json({ id, username: trimmed, role });
+  })
+);
+
+/** DELETE /api/users/:id  (solo admin, nunca el propio admin) */
+app.delete(
+  '/api/users/:id',
+  route(async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const user = await one("SELECT role FROM users WHERE id=$1", [req.params.id]);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    if (user.role === 'admin') return res.status(403).json({ error: 'No se puede eliminar al admin.' });
+    await run('DELETE FROM users WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  })
+);
+
 // servidor estático ni un proxy nginx aparte en el hosting.
 app.use(express.static(DIST_DIR));
 app.get('*', (req, res, next) => {
@@ -559,6 +645,7 @@ app.get('*', (req, res, next) => {
 // Sin top-level await (Phusion Passenger carga este archivo con require()).
 async function main() {
   await initSchema();
+  await seedUsers();
   app.listen(PORT, () => {
     console.log(`Firma API escuchando en http://localhost:${PORT}`);
   });

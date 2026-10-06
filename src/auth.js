@@ -1,30 +1,24 @@
-// Credenciales fijas mientras no haya backend de usuarios.
+// Autenticación contra el backend (POST /api/auth/login).
 // role 'admin': sube documentos, asigna firmantes y ve el Registro completo.
-// Cualquier otro role es un firmante interno (normalmente Firmante 2); entra
-// directo en Pendientes y solo puede consultar/firmar sus propias firmas.
-const USERS = [
-  { username: 'admin', password: 'Admin123$', role: 'admin' },
-  { username: 'Pablo', password: 'Pablo345!', role: 'pablo' },
-  { username: 'Comercial', password: 'Com852!', role: 'comercial' },
-];
-const INTERNAL_ROLES = ['pablo', 'comercial'];
+// Cualquier otro role es un firmante interno; entra directo en su panel.
+const INTERNAL_ROLES = ['pablo', 'comercial', 'user'];
 const SESSION_KEY = 'firma_auth';
 const USER_KEY = 'firma_user';
 const ROLE_KEY = 'firma_role';
 
-/** Rol de la sesión activa ('admin' | 'pablo' | 'comercial'), o null si no hay sesión. */
+/** Rol de la sesión activa ('admin' | …), o null si no hay sesión. */
 export function getSessionRole() {
   return sessionStorage.getItem(ROLE_KEY);
 }
 
-/** Usuario de login de la sesión activa (p. ej. 'Pablo'), o null si no hay sesión. */
+/** Usuario de login de la sesión activa, o null si no hay sesión. */
 export function getSessionUser() {
   return sessionStorage.getItem(USER_KEY);
 }
 
 /** true si el rol es un firmante interno (entra directo en Pendientes). */
 export function isInternalRole(role) {
-  return INTERNAL_ROLES.includes(role);
+  return role !== null && role !== 'admin';
 }
 
 const loginScreen = document.getElementById('login-screen');
@@ -39,13 +33,16 @@ const userInitial = document.getElementById('user-initial');
 const btnUser = document.getElementById('btn-user');
 const userDropdown = document.getElementById('user-dropdown');
 const menuMando = document.getElementById('menu-mando');
+const menuUsuarios = document.getElementById('menu-usuarios');
 
 function setUserInitial(username) {
   userInitial.textContent = (username || 'A').trim().charAt(0).toUpperCase() || 'A';
 }
 
 function applyRoleUI(role) {
-  document.body.classList.toggle('role-pablo', INTERNAL_ROLES.includes(role));
+  document.body.classList.toggle('role-pablo', isInternalRole(role));
+  if (menuMando) menuMando.hidden = role !== 'admin';
+  if (menuUsuarios) menuUsuarios.hidden = role !== 'admin';
 }
 
 function showApp() {
@@ -77,33 +74,43 @@ export function initAuth() {
     const savedUser = sessionStorage.getItem(USER_KEY);
     const savedRole = sessionStorage.getItem(ROLE_KEY) || 'admin';
     setUserInitial(savedUser);
-    menuMando.hidden = savedRole !== 'admin';
     applyRoleUI(savedRole);
     showApp();
   } else {
     showLogin();
   }
 
-  loginForm.addEventListener('submit', (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = loginUser.value.trim();
-    const match = USERS.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase() && u.password === loginPass.value
-    );
-    if (match) {
+    const password = loginPass.value;
+    loginError.hidden = true;
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        loginError.textContent = data.error || 'Usuario o contraseña incorrectos.';
+        loginError.hidden = false;
+        loginPass.value = '';
+        loginPass.focus();
+        return;
+      }
       sessionStorage.setItem(SESSION_KEY, '1');
-      sessionStorage.setItem(USER_KEY, match.username);
-      sessionStorage.setItem(ROLE_KEY, match.role);
-      setUserInitial(match.username);
-      menuMando.hidden = match.role !== 'admin';
-      applyRoleUI(match.role);
+      sessionStorage.setItem(USER_KEY, data.username);
+      sessionStorage.setItem(ROLE_KEY, data.role);
+      setUserInitial(data.username);
+      applyRoleUI(data.role);
       loginError.hidden = true;
       showApp();
-      document.dispatchEvent(new CustomEvent('firma:loggedIn', { detail: { role: match.role } }));
-    } else {
+      document.dispatchEvent(new CustomEvent('firma:loggedIn', { detail: { role: data.role } }));
+    } catch {
+      loginError.textContent = 'No se pudo conectar con el servidor.';
       loginError.hidden = false;
-      loginPass.value = '';
-      loginPass.focus();
     }
   });
 

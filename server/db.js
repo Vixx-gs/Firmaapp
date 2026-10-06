@@ -48,6 +48,14 @@ export async function withTransaction(fn) {
 }
 
 const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
   CREATE TABLE IF NOT EXISTS documents (
     id TEXT PRIMARY KEY,
     filename TEXT NOT NULL,

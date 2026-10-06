@@ -1232,3 +1232,63 @@ body.role-pablo #btn-back {
 @media (max-width: 760px) {
   .registry-doc { max-width: 180px; }
 }
+
+/* ── Pantalla Usuarios ───────────────────────────────────────────────────── */
+.usuarios-add-card { margin-bottom: 20px; }
+.usuarios-add-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.usuarios-form { display: flex; flex-direction: column; gap: 14px; }
+.usuarios-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.usuarios-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.usuarios-field input,
+.usuarios-field select {
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+.usuarios-field input:focus,
+.usuarios-field select:focus {
+  outline: none;
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(139,92,246,.15);
+}
+.usuarios-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  border: 1px solid #fca5a5;
+  background: #fff5f5;
+  color: #dc2626;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.usuarios-delete-btn:hover { background: #fee2e2; }
+
+@media (max-width: 640px) {
+  .usuarios-fields { grid-template-columns: 1fr; }
+}
