@@ -41,7 +41,7 @@ function getKnownUsers() {
   try {
     const raw = JSON.parse(localStorage.getItem(KNOWN_USERS_KEY)) || [];
     // Compatibilidad con el formato antiguo (solo nombres, sin contacto).
-    stored = raw.map((u) => (typeof u === 'string' ? { name: u, email: '' } : u));
+    stored = raw.map((u) => (typeof u === 'string' ? { name: u, email: '', phone: '' } : u));
   } catch {
     stored = [];
   }
@@ -52,16 +52,17 @@ function getKnownUsers() {
   return [...stored, ...extra];
 }
 
-/** Guarda o actualiza el email asociado a un nombre de usuario. */
-function rememberUser(name, email) {
+/** Guarda o actualiza el email y teléfono asociados a un nombre de usuario. */
+function rememberUser(name, email, phone) {
   const trimmed = name.trim();
   if (!trimmed) return;
   const list = getKnownUsers();
   const existing = list.find((u) => u.name.toLowerCase() === trimmed.toLowerCase());
   if (existing) {
     existing.email = email || existing.email;
+    if (phone) existing.phone = phone;
   } else {
-    list.push({ name: trimmed, email: email || '' });
+    list.push({ name: trimmed, email: email || '', phone: phone || '' });
   }
   localStorage.setItem(KNOWN_USERS_KEY, JSON.stringify(list));
 }
@@ -77,7 +78,7 @@ function findKnownUser(name) {
 
   const profile = getProfile();
   if (profile.name && profile.name.trim().toLowerCase() === trimmed) {
-    return { name: profile.name, email: profile.email || '' };
+    return { name: profile.name, email: profile.email || '', phone: profile.phone || '' };
   }
   return getKnownUsers().find((u) => u.name.toLowerCase() === trimmed) || null;
 }
@@ -111,6 +112,16 @@ function renderSuggestions(query) {
     item.addEventListener('click', () => {
       userInput.value = name;
       suggestionsEl.hidden = true;
+      // Auto-rellenar email y teléfono si el usuario tiene datos guardados
+      const known = findKnownUser(name);
+      if (known) {
+        if (known.email && !emailInput.value) emailInput.value = known.email;
+        if (known.phone) {
+          setPhoneValue(known.phone);
+          const raw = known.phone.replace(/^\+\d{1,4}/, '');
+          phoneInput.value = raw;
+        }
+      }
     });
     suggestionsEl.appendChild(item);
   });
@@ -129,15 +140,24 @@ function openModal(signer, { isNew = false } = {}) {
   editingId = signer.id;
   editingIsNew = isNew;
   titleEl.textContent = `Datos de ${signer.label}`;
+  userInput.value = signer.username || '';
+  // Determina el teléfono: usa el guardado en el firmante, o lo busca en el perfil/historial
+  let resolvedPhone = signer.phone || '';
+  if (!resolvedPhone && signer.username) {
+    const known = findKnownUser(signer.username);
+    if (known && known.phone) resolvedPhone = known.phone;
+  }
   emailInput.value = signer.email || '';
+  if (!emailInput.value && signer.username) {
+    const known = findKnownUser(signer.username);
+    if (known && known.email) emailInput.value = known.email;
+  }
   phoneInput.value = '';
-  setPhoneValue(signer.phone || '');
-  // Si tiene teléfono guardado, muestra solo la parte local (sin prefijo)
-  if (signer.phone) {
-    const raw = signer.phone.replace(/^\+\d{1,4}/, '');
+  setPhoneValue(resolvedPhone);
+  if (resolvedPhone) {
+    const raw = resolvedPhone.replace(/^\+\d{1,4}/, '');
     phoneInput.value = raw;
   }
-  userInput.value = signer.username || '';
   errorEl.hidden = true;
   suggestionsEl.hidden = true;
   modal.hidden = false;
@@ -187,7 +207,7 @@ form.addEventListener('submit', (e) => {
   signer.email = finalEmail;
   signer.phone = fullPhone;
   signer.username = username;
-  if (username) rememberUser(username, finalEmail);
+  if (username) rememberUser(username, finalEmail, fullPhone || undefined);
 
   renderChip(signer);
   const wasNew = editingIsNew;
