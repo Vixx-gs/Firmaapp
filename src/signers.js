@@ -6,6 +6,13 @@ import { getFullPhone, resetPhoneCountry, setPhoneValue } from './phoneCountry.j
 
 const KNOWN_USERS_KEY = 'firma_known_users';
 
+/** Si el teléfono no tiene prefijo internacional, asume España (+34). */
+function normalizePhone(phone) {
+  if (!phone) return '';
+  const p = phone.replace(/\s/g, '');
+  return p.startsWith('+') ? p : `+34${p}`;
+}
+
 // Usuarios del sistema cargados desde la API (se refrescan al abrir el modal).
 let appUsers = [];
 
@@ -117,9 +124,9 @@ function renderSuggestions(query) {
       if (known) {
         if (known.email && !emailInput.value) emailInput.value = known.email;
         if (known.phone) {
-          setPhoneValue(known.phone);
-          const raw = known.phone.replace(/^\+\d{1,4}/, '');
-          phoneInput.value = raw;
+          const full = normalizePhone(known.phone);
+          setPhoneValue(full);
+          phoneInput.value = full.replace(/^\+\d{1,4}/, '');
         }
       }
     });
@@ -153,10 +160,12 @@ function openModal(signer, { isNew = false } = {}) {
     if (known && known.email) emailInput.value = known.email;
   }
   phoneInput.value = '';
-  setPhoneValue(resolvedPhone);
   if (resolvedPhone) {
-    const raw = resolvedPhone.replace(/^\+\d{1,4}/, '');
-    phoneInput.value = raw;
+    const full = normalizePhone(resolvedPhone);
+    setPhoneValue(full);
+    phoneInput.value = full.replace(/^\+\d{1,4}/, '');
+  } else {
+    setPhoneValue('');
   }
   errorEl.hidden = true;
   suggestionsEl.hidden = true;
