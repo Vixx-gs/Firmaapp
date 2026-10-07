@@ -197,14 +197,40 @@ export const COUNTRIES = [
 
 let selectedCountry = COUNTRIES.find((c) => c.code === 'ES');
 
-const btn = document.getElementById('phone-country-btn');
-const flagEl = document.getElementById('phone-country-flag');
-const codeEl = document.getElementById('phone-country-code');
-const dropdown = document.getElementById('phone-country-dropdown');
-const searchInput = document.getElementById('phone-country-search');
-const list = document.getElementById('phone-country-list');
+// Referencias a los elementos del DOM — se resuelven la primera vez que se
+// necesitan (lazy) para no crashear si el módulo se importa antes de que
+// el modal esté en el DOM.
+let btn, flagEl, codeEl, dropdown, searchInput, list;
+let initialized = false;
+
+function getEls() {
+  if (!initialized) {
+    btn = document.getElementById('phone-country-btn');
+    flagEl = document.getElementById('phone-country-flag');
+    codeEl = document.getElementById('phone-country-code');
+    dropdown = document.getElementById('phone-country-dropdown');
+    searchInput = document.getElementById('phone-country-search');
+    list = document.getElementById('phone-country-list');
+    if (btn && dropdown && searchInput && list) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dropdown.hidden) openDropdown();
+        else closeDropdown();
+      });
+      searchInput.addEventListener('input', () => renderList(searchInput.value));
+      document.addEventListener('click', (e) => {
+        if (!dropdown.hidden && !dropdown.closest('.phone-input-wrap').contains(e.target)) closeDropdown();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !dropdown.hidden) closeDropdown();
+      });
+      initialized = true;
+    }
+  }
+}
 
 function renderList(filter = '') {
+  if (!list) return;
   const q = filter.toLowerCase();
   const filtered = q
     ? COUNTRIES.filter((c) => c.name.toLowerCase().includes(q) || c.dial.includes(q))
@@ -226,44 +252,31 @@ function renderList(filter = '') {
 
 function selectCountry(c) {
   selectedCountry = c;
-  flagEl.textContent = c.flag;
-  codeEl.textContent = c.dial;
+  if (flagEl) flagEl.textContent = c.flag;
+  if (codeEl) codeEl.textContent = c.dial;
   closeDropdown();
 }
 
 function openDropdown() {
+  if (!dropdown || !btn || !searchInput || !list) return;
   dropdown.hidden = false;
   btn.setAttribute('aria-expanded', 'true');
   searchInput.value = '';
   renderList();
-  // Scroll al seleccionado
   const sel = list.querySelector('.selected');
   if (sel) setTimeout(() => sel.scrollIntoView({ block: 'nearest' }), 0);
   searchInput.focus();
 }
 
 function closeDropdown() {
+  if (!dropdown || !btn) return;
   dropdown.hidden = true;
   btn.setAttribute('aria-expanded', 'false');
 }
 
-btn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (dropdown.hidden) openDropdown();
-  else closeDropdown();
-});
-
-searchInput.addEventListener('input', () => renderList(searchInput.value));
-
-document.addEventListener('click', (e) => {
-  if (!dropdown.hidden && !dropdown.closest('.phone-input-wrap').contains(e.target)) closeDropdown();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !dropdown.hidden) closeDropdown();
-});
-
 /** Devuelve el número completo con prefijo (p. ej. "+34600000000"). */
 export function getFullPhone(localNumber) {
+  getEls();
   const n = localNumber.replace(/\s/g, '');
   if (!n) return '';
   return `${selectedCountry.dial}${n}`;
@@ -271,13 +284,15 @@ export function getFullPhone(localNumber) {
 
 /** Restablece el selector al país por defecto (España) y vacía el input. */
 export function resetPhoneCountry() {
+  getEls();
   selectedCountry = COUNTRIES.find((c) => c.code === 'ES');
-  flagEl.textContent = selectedCountry.flag;
-  codeEl.textContent = selectedCountry.dial;
+  if (flagEl) flagEl.textContent = selectedCountry.flag;
+  if (codeEl) codeEl.textContent = selectedCountry.dial;
 }
 
 /** Precarga el selector con un número ya guardado (p. ej. al reabrir el modal). */
 export function setPhoneValue(fullPhone) {
+  getEls();
   if (!fullPhone) return;
   const match = COUNTRIES.slice().sort((a, b) => b.dial.length - a.dial.length)
     .find((c) => fullPhone.startsWith(c.dial));
