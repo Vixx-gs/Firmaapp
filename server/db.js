@@ -60,7 +60,9 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     filename TEXT NOT NULL,
     pdf BYTEA NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL
+    created_at TIMESTAMPTZ NOT NULL,
+    original_hash TEXT,
+    signed_hash TEXT
   );
 
   CREATE TABLE IF NOT EXISTS signers (
@@ -96,13 +98,44 @@ const SCHEMA = `
     phone TEXT,
     sent_at TIMESTAMPTZ NOT NULL,
     opened_at TIMESTAMPTZ,
-    signed_at TIMESTAMPTZ
+    signed_at TIMESTAMPTZ,
+    sign_ip TEXT,
+    sign_ua TEXT,
+    otp_verified_at TIMESTAMPTZ
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    signer_id TEXT,
+    action TEXT NOT NULL,
+    ip TEXT,
+    user_agent TEXT,
+    email TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS otp_codes (
+    id TEXT PRIMARY KEY,
+    send_log_id TEXT NOT NULL,
+    code TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ
   );
 
   CREATE INDEX IF NOT EXISTS idx_signers_document ON signers(document_id);
   CREATE INDEX IF NOT EXISTS idx_signers_email ON signers(lower(email));
   CREATE INDEX IF NOT EXISTS idx_fields_document ON fields(document_id);
   CREATE INDEX IF NOT EXISTS idx_send_log_document ON send_log(document_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_document ON audit_log(document_id);
+  CREATE INDEX IF NOT EXISTS idx_otp_send_log ON otp_codes(send_log_id);
+
+  ALTER TABLE documents ADD COLUMN IF NOT EXISTS original_hash TEXT;
+  ALTER TABLE documents ADD COLUMN IF NOT EXISTS signed_hash TEXT;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS sign_ip TEXT;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS sign_ua TEXT;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS otp_verified_at TIMESTAMPTZ;
 `;
 
 /** Crea las tablas si no existen. Se llama una vez al arrancar el servidor. */

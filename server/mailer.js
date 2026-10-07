@@ -123,11 +123,38 @@ export async function sendSignRequestEmail({ to, signLink, documentName }) {
 }
 
 /**
+ * Envía el código OTP al firmante para verificar su identidad.
+ * @param {{ to: string, otp: string, documentName: string }} params
+ */
+export async function sendOtpEmail({ to, otp, documentName }) {
+  const transporter = getTransporter();
+  if (!transporter) throw new Error('Email no configurado.');
+
+  const bodyHtml = `
+    <p>Para firmar el documento <strong>${documentName}</strong> necesitamos verificar tu identidad.</p>
+    <p>Introduce este código en la pantalla de firma:</p>
+    <div style="margin: 24px auto; text-align: center;">
+      <span style="display: inline-block; background: #f0eeff; border: 2px solid #8b5cf6; border-radius: 12px; padding: 14px 32px; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #6d28d9; font-family: monospace;">${otp}</span>
+    </div>
+    <p style="color: #8a8ca0; font-size: 13px;">Este código caduca en <strong>10 minutos</strong>. Si no solicitaste esta verificación, ignora este correo.</p>
+  `;
+
+  await transporter.sendMail({
+    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
+    to,
+    subject: `Tu código de verificación: ${otp}`,
+    text: `Código de verificación para firmar "${documentName}": ${otp}\n\nCaduca en 10 minutos.`,
+    html: brandedHtml({ title: 'Verifica tu identidad para firmar', bodyHtml }),
+    attachments: [logoAttachment()],
+  });
+}
+
+/**
  * Envía el documento ya firmado por todas las partes como copia final a un
  * firmante, con el PDF adjunto.
- * @param {{ to: string, documentName: string, pdfBuffer: Buffer }} params
+ * @param {{ to: string, documentName: string, pdfBuffer: Buffer, auditBuffer?: Buffer }} params
  */
-export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer }) {
+export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer, auditBuffer }) {
   const transporter = getTransporter();
   if (!transporter) {
     throw new Error(
@@ -138,9 +165,22 @@ export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer }
   const bodyHtml = `
     <p>Hola,</p>
     <p>El documento <strong>${documentName}</strong> ya ha sido firmado por todas las partes.</p>
-    <p>Te adjuntamos una copia final para que la guardes.</p>
+    <p>Te adjuntamos dos archivos:</p>
+    <ul>
+      <li><strong>Documento firmado</strong> (PDF con las firmas incrustadas)</li>
+      <li><strong>Certificado de evidencia</strong> (registro de auditoría con los datos de cada firma: IP, timestamp y verificación de identidad)</li>
+    </ul>
   `;
-  const text = `Hola,\n\nEl documento "${documentName}" ya ha sido firmado por todas las partes.\nTe adjuntamos una copia final en PDF.`;
+  const text = `El documento "${documentName}" ha sido firmado por todas las partes. Se adjuntan el documento firmado y el certificado de evidencia.`;
+
+  const attachments = [
+    logoAttachment(),
+    { filename: documentName.endsWith('.pdf') ? documentName : `${documentName}.pdf`, content: pdfBuffer },
+  ];
+  if (auditBuffer) {
+    const baseName = documentName.replace(/\.pdf$/i, '');
+    attachments.push({ filename: `${baseName}_certificado_evidencia.pdf`, content: auditBuffer });
+  }
 
   await transporter.sendMail({
     from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
@@ -148,13 +188,7 @@ export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer }
     to,
     subject: `Documento firmado: ${documentName}`,
     text,
-    html: brandedHtml({
-      title: 'Documento firmado por todas las partes',
-      bodyHtml,
-    }),
-    attachments: [
-      logoAttachment(),
-      { filename: documentName.endsWith('.pdf') ? documentName : `${documentName}.pdf`, content: pdfBuffer },
-    ],
+    html: brandedHtml({ title: 'Documento firmado por todas las partes', bodyHtml }),
+    attachments,
   });
 }

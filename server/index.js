@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { PDFDocument } from 'pdf-lib';
 import { all, one, run, withTransaction, initSchema } from './db.js';
-import { sendSignRequestEmail, sendCompletedDocumentEmail } from './mailer.js';
+import { sendSignRequestEmail, sendCompletedDocumentEmail, sendOtpEmail } from './mailer.js';
 import { sendSignRequestWhatsapp } from './whatsapp.js';
+import { generateAuditCert } from './audit-cert.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -46,6 +47,26 @@ app.use(express.json({ limit: '50mb' }));
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sha256(buf) {
+  return crypto.createHash('sha256').update(buf).digest('hex');
+}
+
+function getClientIp(req) {
+  return (
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    null
+  );
+}
+
+async function addAuditEvent(documentId, { signerId = null, action, ip = null, userAgent = null, email = null, metadata = null } = {}) {
+  await run(
+    `INSERT INTO audit_log (id, document_id, signer_id, action, ip, user_agent, email, metadata, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [randomUUID(), documentId, signerId || null, action, ip, userAgent, email, metadata ? JSON.stringify(metadata) : null, nowIso()]
+  );
 }
 
 function dataUrlToBytes(dataUrl) {
@@ -174,14 +195,17 @@ app.post(
 
     const documentId = randomUUID();
     const signerIdByLabel = {};
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+    const originalHash = sha256(pdfBuffer);
 
     // Todo o nada: un fallo a mitad no deja un documento a medias guardado.
     await withTransaction(async (client) => {
-      await client.query('INSERT INTO documents (id, filename, pdf, created_at) VALUES ($1, $2, $3, $4)', [
+      await client.query('INSERT INTO documents (id, filename, pdf, created_at, original_hash) VALUES ($1, $2, $3, $4, $5)', [
         documentId,
         documentName,
-        Buffer.from(pdfBase64, 'base64'),
+        pdfBuffer,
         nowIso(),
+        originalHash,
       ]);
 
       for (const [i, s] of signers.entries()) {
@@ -202,6 +226,13 @@ app.post(
           [randomUUID(), documentId, signerId, f.pageIndex, f.x, f.y, f.w, f.h, f.cssScale]
         );
       }
+    });
+
+    await addAuditEvent(documentId, {
+      action: 'document_created',
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      metadata: { documentName, signerCount: signers.length, originalHash },
     });
 
     const documentRow = { id: documentId, filename: documentName };
@@ -235,12 +266,22 @@ app.get(
 
     // Solo se marca la primera vez que se abre el enlace.
     if (!log.opened_at) {
-      await run('UPDATE send_log SET opened_at = $1 WHERE id = $2 AND opened_at IS NULL', [nowIso(), log.id]);
+      const openedAt = nowIso();
+      await run('UPDATE send_log SET opened_at = $1 WHERE id = $2 AND opened_at IS NULL', [openedAt, log.id]);
+      await addAuditEvent(log.document_id, {
+        signerId: log.signer_id,
+        action: 'sign_page_opened',
+        ip: getClientIp(req),
+        userAgent: req.headers['user-agent'],
+        email: log.email,
+        metadata: { signerLabel: signer.label },
+      });
     }
 
     res.json({
       documentName: doc.filename,
       signerLabel: signer.label,
+      signerEmail: signer.email || null,
       alreadySigned: Boolean(field.signed_at),
       pdfBase64: doc.pdf.toString('base64'),
       field: {
@@ -255,6 +296,75 @@ app.get(
   })
 );
 
+/** POST /api/sign/:token/request-otp  — genera y envía un OTP al email del firmante. */
+app.post(
+  '/api/sign/:token/request-otp',
+  route(async (req, res) => {
+    const log = await one('SELECT * FROM send_log WHERE token = $1', [req.params.token]);
+    if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
+    if (!log.email) return res.status(400).json({ error: 'El firmante no tiene email registrado.' });
+
+    // Invalida OTPs anteriores no usados para este send_log
+    await run("UPDATE otp_codes SET used_at = now() WHERE send_log_id = $1 AND used_at IS NULL", [log.id]);
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await run(
+      'INSERT INTO otp_codes (id, send_log_id, code, expires_at) VALUES ($1, $2, $3, $4)',
+      [randomUUID(), log.id, otp, expiresAt]
+    );
+
+    const doc = await one('SELECT filename FROM documents WHERE id = $1', [log.document_id]);
+    await sendOtpEmail({ to: log.email, otp, documentName: doc?.filename || log.document_name });
+
+    await addAuditEvent(log.document_id, {
+      signerId: log.signer_id,
+      action: 'otp_requested',
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      email: log.email,
+    });
+
+    res.json({ ok: true, sentTo: log.email });
+  })
+);
+
+/** POST /api/sign/:token/verify-otp  { code }  — verifica el OTP y devuelve otpToken. */
+app.post(
+  '/api/sign/:token/verify-otp',
+  route(async (req, res) => {
+    const { code } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Falta el código.' });
+
+    const log = await one('SELECT * FROM send_log WHERE token = $1', [req.params.token]);
+    if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
+
+    const otpRow = await one(
+      `SELECT * FROM otp_codes WHERE send_log_id = $1 AND code = $2 AND used_at IS NULL AND expires_at > now()
+       ORDER BY expires_at DESC LIMIT 1`,
+      [log.id, code.trim()]
+    );
+    if (!otpRow) return res.status(401).json({ error: 'Código incorrecto o caducado.' });
+
+    await run('UPDATE otp_codes SET used_at = now() WHERE id = $1', [otpRow.id]);
+    const verifiedAt = nowIso();
+    await run('UPDATE send_log SET otp_verified_at = $1 WHERE id = $2', [verifiedAt, log.id]);
+
+    await addAuditEvent(log.document_id, {
+      signerId: log.signer_id,
+      action: 'otp_verified',
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+      email: log.email,
+    });
+
+    // Token de sesión de firma: hash del token de enlace + timestamp, para
+    // que el cliente lo incluya en el POST de firma como prueba de verificación.
+    const otpSessionToken = sha256(`${req.params.token}:${verifiedAt}`);
+    res.json({ ok: true, otpSessionToken, verifiedAt });
+  })
+);
+
 /**
  * Recibe la firma dibujada, la incrusta en el PDF, marca la hora de firma
  * y, si hay un siguiente firmante en orden con un campo asignado, le avisa
@@ -263,16 +373,26 @@ app.get(
 app.post(
   '/api/sign/:token',
   route(async (req, res) => {
-    const { signatureDataUrl } = req.body;
+    const { signatureDataUrl, otpSessionToken } = req.body;
     if (typeof signatureDataUrl !== 'string' || !signatureDataUrl.includes(',')) {
       return res.status(400).json({ error: 'Falta la firma.' });
     }
+
+    const signIp = getClientIp(req);
+    const signUa = req.headers['user-agent'] || null;
 
     // Se bloquea la fila del documento mientras se incrusta la firma: dos
     // firmas simultáneas se aplican una detrás de otra sin pisarse el PDF.
     const outcome = await withTransaction(async (client) => {
       const log = (await client.query('SELECT * FROM send_log WHERE token = $1', [req.params.token])).rows[0];
       if (!log) return { status: 404, error: 'Enlace no válido.' };
+
+      // Verificar que el OTP fue validado (o que el token de sesión es correcto).
+      if (!log.otp_verified_at) return { status: 403, error: 'Debes verificar tu identidad con el código OTP antes de firmar.' };
+      if (otpSessionToken) {
+        const expected = sha256(`${req.params.token}:${new Date(log.otp_verified_at).toISOString()}`);
+        if (otpSessionToken !== expected) return { status: 403, error: 'Token de verificación inválido.' };
+      }
 
       const doc = (
         await client.query('SELECT id, filename, pdf FROM documents WHERE id = $1 FOR UPDATE', [log.document_id])
@@ -301,7 +421,10 @@ app.post(
       const signedAt = nowIso();
       await client.query('UPDATE documents SET pdf = $1 WHERE id = $2', [signedPdf, doc.id]);
       await client.query('UPDATE fields SET signed_at = $1 WHERE id = $2', [signedAt, field.id]);
-      await client.query('UPDATE send_log SET signed_at = $1 WHERE id = $2', [signedAt, log.id]);
+      await client.query(
+        'UPDATE send_log SET signed_at = $1, sign_ip = $2, sign_ua = $3 WHERE id = $4',
+        [signedAt, signIp, signUa, log.id]
+      );
 
       // ¿Hay un siguiente firmante (por orden) con un campo asignado en este documento?
       const nextSigner =
@@ -326,6 +449,13 @@ app.post(
         ? []
         : (await client.query('SELECT * FROM signers WHERE document_id = $1', [doc.id])).rows;
 
+      // Si el documento está completo, guardar el hash del PDF firmado final.
+      let signedHash = null;
+      if (!stillPending) {
+        signedHash = sha256(signedPdf);
+        await client.query('UPDATE documents SET signed_hash = $1 WHERE id = $2', [signedHash, doc.id]);
+      }
+
       return {
         ok: true,
         doc: { id: doc.id, filename: doc.filename },
@@ -334,10 +464,24 @@ app.post(
         completed: !stillPending,
         finalPdf: signedPdf,
         allSigners,
+        signedHash,
       };
     });
 
     if (!outcome.ok) return res.status(outcome.status).json({ error: outcome.error });
+
+    // Audit event de firma aplicada.
+    const logRow = await one('SELECT * FROM send_log WHERE token = $1', [req.params.token]);
+    if (logRow) {
+      await addAuditEvent(logRow.document_id, {
+        signerId: logRow.signer_id,
+        action: 'signed',
+        ip: signIp,
+        userAgent: signUa,
+        email: logRow.email,
+        metadata: { signedAt: logRow.signed_at },
+      });
+    }
 
     // Los avisos (email/WhatsApp) van fuera de la transacción: no bloquean la base de datos.
     let nextNotified = false;
@@ -351,8 +495,46 @@ app.post(
       }
     }
 
-    // Documento completo: copia final por email a todos los firmantes con email.
+    // Documento completo: generar certificado de evidencia y enviar a todos.
     if (outcome.completed) {
+      await addAuditEvent(outcome.doc.id, { action: 'completed', metadata: { signedHash: outcome.signedHash } });
+
+      // Recopilar datos para el certificado.
+      let auditBuffer = null;
+      try {
+        const docRow = await one('SELECT * FROM documents WHERE id = $1', [outcome.doc.id]);
+        const signersRows = await all('SELECT * FROM signers WHERE document_id = $1 ORDER BY seq', [outcome.doc.id]);
+        const logsRows = await all('SELECT * FROM send_log WHERE document_id = $1', [outcome.doc.id]);
+        const auditEvents = await all('SELECT * FROM audit_log WHERE document_id = $1 ORDER BY created_at', [outcome.doc.id]);
+
+        const signersForCert = signersRows.map((s) => {
+          const l = logsRows.find((x) => x.signer_id === s.id);
+          return {
+            label: s.label,
+            name: s.name,
+            email: s.email,
+            phone: s.phone,
+            sentAt: l?.sent_at || null,
+            openedAt: l?.opened_at || null,
+            signedAt: l?.signed_at || null,
+            otpVerifiedAt: l?.otp_verified_at || null,
+            signIp: l?.sign_ip || null,
+            signUa: l?.sign_ua || null,
+          };
+        });
+
+        auditBuffer = await generateAuditCert({
+          documentName: outcome.doc.filename,
+          originalHash: docRow?.original_hash || null,
+          signedHash: outcome.signedHash,
+          createdAt: docRow?.created_at || null,
+          signers: signersForCert,
+          auditEvents,
+        });
+      } catch (err) {
+        console.error('No se pudo generar el certificado de evidencia:', err.message);
+      }
+
       await Promise.all(
         outcome.allSigners
           .filter((s) => s.email)
@@ -361,6 +543,7 @@ app.post(
               to: s.email,
               documentName: outcome.doc.filename,
               pdfBuffer: outcome.finalPdf,
+              auditBuffer,
             }).catch((err) => console.error(`No se pudo enviar copia final a ${s.email}:`, err.message))
           )
       );
