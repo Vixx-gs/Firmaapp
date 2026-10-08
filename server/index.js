@@ -11,6 +11,7 @@ import { sendSignRequestEmail, sendCompletedDocumentEmail, sendOtpEmail } from '
 import { sendSignRequestWhatsapp } from './whatsapp.js';
 import { generateAuditCert } from './audit-cert.js';
 import { startReminders } from './reminders.js';
+import { isS3Enabled, uploadPdf, downloadPdf, pdfKey } from './storage.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -48,6 +49,12 @@ app.use(express.json({ limit: '50mb' }));
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/** Devuelve el Buffer del PDF de un documento (S3 o columna pdf en BD). */
+async function getPdfBuffer(doc) {
+  if (doc.pdf_key) return downloadPdf(doc.pdf_key);
+  return doc.pdf; // BYTEA legacy
 }
 
 function sha256(buf) {
@@ -199,15 +206,19 @@ app.post(
     const pdfBuffer = Buffer.from(pdfBase64, 'base64');
     const originalHash = sha256(pdfBuffer);
 
+    // Si S3 está configurado, sube el PDF allí y guarda solo la clave en BD.
+    let storedPdfKey = null;
+    if (isS3Enabled()) {
+      storedPdfKey = pdfKey(documentId);
+      await uploadPdf(storedPdfKey, pdfBuffer);
+    }
+
     // Todo o nada: un fallo a mitad no deja un documento a medias guardado.
     await withTransaction(async (client) => {
-      await client.query('INSERT INTO documents (id, filename, pdf, created_at, original_hash) VALUES ($1, $2, $3, $4, $5)', [
-        documentId,
-        documentName,
-        pdfBuffer,
-        nowIso(),
-        originalHash,
-      ]);
+      await client.query(
+        'INSERT INTO documents (id, filename, pdf, pdf_key, created_at, original_hash) VALUES ($1, $2, $3, $4, $5, $6)',
+        [documentId, documentName, storedPdfKey ? null : pdfBuffer, storedPdfKey, nowIso(), originalHash]
+      );
 
       for (const [i, s] of signers.entries()) {
         const signerId = randomUUID();
@@ -279,12 +290,13 @@ app.get(
       });
     }
 
+    const pdfBuf = await getPdfBuffer(doc);
     res.json({
       documentName: doc.filename,
       signerLabel: signer.label,
       signerEmail: signer.email || null,
       alreadySigned: Boolean(field.signed_at),
-      pdfBase64: doc.pdf.toString('base64'),
+      pdfBase64: pdfBuf.toString('base64'),
       field: {
         pageIndex: field.page_index,
         x: field.x,
@@ -396,7 +408,7 @@ app.post(
       }
 
       const doc = (
-        await client.query('SELECT id, filename, pdf FROM documents WHERE id = $1 FOR UPDATE', [log.document_id])
+        await client.query('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1 FOR UPDATE', [log.document_id])
       ).rows[0];
       const currentSigner = (await client.query('SELECT * FROM signers WHERE id = $1', [log.signer_id])).rows[0];
       const field = (
@@ -408,7 +420,8 @@ app.post(
       if (!doc || !field) return { status: 404, error: 'Datos no encontrados.' };
       if (field.signed_at) return { status: 409, error: 'Este documento ya está firmado por ti.' };
 
-      const pdfDoc = await PDFDocument.load(doc.pdf);
+      const currentPdfBuffer = await getPdfBuffer(doc);
+      const pdfDoc = await PDFDocument.load(currentPdfBuffer);
       const page = pdfDoc.getPages()[field.page_index];
       const png = await pdfDoc.embedPng(dataUrlToBytes(signatureDataUrl));
 
@@ -420,7 +433,13 @@ app.post(
 
       const signedPdf = Buffer.from(await pdfDoc.save());
       const signedAt = nowIso();
-      await client.query('UPDATE documents SET pdf = $1 WHERE id = $2', [signedPdf, doc.id]);
+      if (doc.pdf_key) {
+        // Sobreescribe el PDF en S3 con la versión firmada (fuera de la TX para no bloquear)
+        await uploadPdf(doc.pdf_key, signedPdf);
+        await client.query('UPDATE documents SET pdf = NULL WHERE id = $1', [doc.id]);
+      } else {
+        await client.query('UPDATE documents SET pdf = $1 WHERE id = $2', [signedPdf, doc.id]);
+      }
       await client.query('UPDATE fields SET signed_at = $1 WHERE id = $2', [signedAt, field.id]);
       await client.query(
         'UPDATE send_log SET signed_at = $1, sign_ip = $2, sign_ua = $3 WHERE id = $4',
@@ -562,7 +581,7 @@ app.post(
 app.get(
   '/api/documents/:id/download',
   route(async (req, res) => {
-    const doc = await one('SELECT id, filename, pdf FROM documents WHERE id = $1', [req.params.id]);
+    const doc = await one('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1', [req.params.id]);
     if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
 
     if (req.header('x-firma-role') !== 'admin') {
@@ -578,9 +597,10 @@ app.get(
       if (!signed) return res.status(403).json({ error: 'No autorizado.' });
     }
 
+    const pdfBuf = await getPdfBuffer(doc);
     res.attachment(doc.filename);
     res.type('application/pdf');
-    res.send(doc.pdf);
+    res.send(pdfBuf);
   })
 );
 
