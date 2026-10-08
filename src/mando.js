@@ -1,6 +1,4 @@
-// "Mando": vista de administrador con todos los documentos enviados a
-// firmar en la app, a quién y cuándo se enviaron/firmaron. Paginado (20 en
-// 20, con "Mostrar más") y filtrable por nombre y rango de fechas.
+// "Mando": vista de todos los documentos enviados a firmar, accesible para todos los usuarios.
 const PAGE_SIZE = 20;
 
 const tableEl = document.getElementById('mando-table');
@@ -72,34 +70,12 @@ async function downloadDocument(documentId, documentName) {
   }
 }
 
-async function deleteDocument(documentId, documentName, trEl) {
-  if (!confirm(`¿Eliminar "${documentName}"?\nSe borrará el documento y todos sus registros de firma. Esta acción no se puede deshacer.`)) return;
-  try {
-    const res = await fetch(`/api/documents/${documentId}`, {
-      method: 'DELETE',
-      headers: { 'x-firma-role': 'admin' },
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'No se pudo eliminar.');
-    }
-    trEl.remove();
-    if (!bodyEl.querySelector('tr')) {
-      tableEl.hidden = true;
-      emptyEl.hidden = false;
-      emptyEl.querySelector('span').textContent = 'No hay envíos registrados todavía.';
-      loadMoreWrap.hidden = true;
-    }
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
 function appendRow(doc) {
   const firstSentAt = doc.signers.find((s) => s.sentAt)?.sentAt;
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><span class="registry-doc" title="${doc.documentName}">${doc.documentName}</span></td>
+    <td><span class="registry-date mando-created-by">${doc.createdBy || '—'}</span></td>
     <td><div class="registry-signers">${doc.signers.map(signerLine).join('')}</div></td>
     <td><span class="registry-date">${formatDate(firstSentAt)}</span></td>
     <td class="mando-actions">
@@ -111,22 +87,10 @@ function appendRow(doc) {
         </svg>
         Descargar
       </button>
-      <button type="button" class="mando-delete-btn">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6l-1 14H6L5 6" />
-          <path d="M10 11v6M14 11v6" />
-          <path d="M9 6V4h6v2" />
-        </svg>
-        Eliminar
-      </button>
     </td>
   `;
   tr.querySelector('.registry-download-btn').addEventListener('click', () =>
     downloadDocument(doc.documentId, doc.documentName)
-  );
-  tr.querySelector('.mando-delete-btn').addEventListener('click', () =>
-    deleteDocument(doc.documentId, doc.documentName, tr)
   );
   bodyEl.appendChild(tr);
 }
@@ -145,7 +109,7 @@ async function loadPage() {
   btnLoadMore.disabled = true;
   btnLoadMore.textContent = 'Cargando…';
   try {
-    const res = await fetch(`/api/registry?${currentFilters()}`, { headers: { 'x-firma-role': 'admin' } });
+    const res = await fetch(`/api/registry?${currentFilters()}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo cargar el listado.');
 

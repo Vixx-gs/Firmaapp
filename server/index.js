@@ -11,7 +11,7 @@ import { sendSignRequestEmail, sendCompletedDocumentEmail, sendOtpEmail } from '
 import { sendSignRequestWhatsapp } from './whatsapp.js';
 import { generateAuditCert } from './audit-cert.js';
 import { startReminders } from './reminders.js';
-import { isS3Enabled, uploadPdf, downloadPdf, pdfKey } from './storage.js';
+import { isS3Enabled, uploadPdf, downloadPdf, pdfKey, pdfExists } from './storage.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -215,9 +215,10 @@ app.post(
 
     // Todo o nada: un fallo a mitad no deja un documento a medias guardado.
     await withTransaction(async (client) => {
+      const createdBy = (req.header('x-firma-user') || '').trim() || null;
       await client.query(
-        'INSERT INTO documents (id, filename, pdf, pdf_key, created_at, original_hash) VALUES ($1, $2, $3, $4, $5, $6)',
-        [documentId, documentName, storedPdfKey ? null : pdfBuffer, storedPdfKey, nowIso(), originalHash]
+        'INSERT INTO documents (id, filename, pdf, pdf_key, created_at, original_hash, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [documentId, documentName, storedPdfKey ? null : pdfBuffer, storedPdfKey, nowIso(), originalHash, createdBy]
       );
 
       for (const [i, s] of signers.entries()) {
@@ -715,8 +716,6 @@ app.get(
 app.get(
   '/api/registry',
   route(async (req, res) => {
-    if (!requireAdmin(req, res)) return;
-
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const q = (req.query.q || '').trim();
@@ -742,12 +741,24 @@ app.get(
 
     const total = (await one(`SELECT count(*)::int AS n FROM documents d WHERE ${where}`, params)).n;
     const documents = await all(
-      `SELECT d.id, d.filename, d.created_at FROM documents d WHERE ${where}
+      `SELECT d.id, d.filename, d.created_at, d.pdf_key, d.created_by FROM documents d WHERE ${where}
        ORDER BY d.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset]
     );
 
-    const documentIds = documents.map((d) => d.id);
+    // Filtrar documentos cuyo PDF ya no existe en S3
+    const existingDocs = await Promise.all(
+      documents.map(async (doc) => {
+        if (doc.pdf_key && isS3Enabled()) {
+          const exists = await pdfExists(doc.pdf_key);
+          if (!exists) return null;
+        }
+        return doc;
+      })
+    );
+    const visibleDocs = existingDocs.filter(Boolean);
+
+    const documentIds = visibleDocs.map((d) => d.id);
     const signersByDoc = groupBy(
       documentIds.length
         ? await all('SELECT * FROM signers WHERE document_id = ANY($1) ORDER BY seq', [documentIds])
@@ -759,7 +770,7 @@ app.get(
       'document_id'
     );
 
-    const result = documents.map((doc) => {
+    const result = visibleDocs.map((doc) => {
       const logs = logsByDoc[doc.id] || [];
       const signerStatuses = (signersByDoc[doc.id] || []).map((s) => {
         const log = logs.find((l) => l.signer_id === s.id);
@@ -777,6 +788,7 @@ app.get(
       return {
         documentId: doc.id,
         documentName: doc.filename,
+        createdBy: doc.created_by || null,
         signers: signerStatuses,
       };
     });

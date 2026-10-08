@@ -41,7 +41,7 @@ function setUserInitial(username) {
 
 function applyRoleUI(role) {
   document.body.classList.toggle('role-pablo', isInternalRole(role));
-  if (menuMando) menuMando.hidden = role !== 'admin';
+  if (menuMando) menuMando.hidden = role === null;
   if (menuUsuarios) menuUsuarios.hidden = role !== 'admin';
 }
 

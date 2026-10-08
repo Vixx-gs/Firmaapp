@@ -1,5 +1,5 @@
 import './style.css';
-import { initAuth } from './auth.js';
+import { initAuth, getSessionUser } from './auth.js';
 import { initProfile } from './profile.js';
 import { renderPdf } from './pdfViewer.js';
 import { SignatureField } from './fields.js';
@@ -408,9 +408,13 @@ btnSend.addEventListener('click', async () => {
   showToast('Enviando documento…');
   btnSend.disabled = true;
   try {
+    const currentUser = getSessionUser();
     const res = await fetch('/api/send-document', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(currentUser ? { 'x-firma-user': currentUser } : {}),
+      },
       body: JSON.stringify(payload),
     });
     const data = await res.json();

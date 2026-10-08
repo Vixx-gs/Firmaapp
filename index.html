@@ -212,7 +212,7 @@
         </div>
       </section>
 
-      <!-- Mando: todos los documentos firmados en la app (solo admin) -->
+      <!-- Mando: todos los documentos enviados a firmar, visible para todos los usuarios -->
       <section id="mando-screen" class="registry-screen" hidden>
         <div class="hero">
           <button id="btn-mando-back" class="btn-back-link" type="button">
@@ -222,7 +222,6 @@
             </svg>
             Volver
           </button>
-          <span class="hero-pill">Solo admin</span>
           <h1>Mando</h1>
           <p>Todos los documentos enviados a firmar en la app, a quién y cuándo se enviaron y se firmaron.</p>
         </div>
@@ -243,6 +242,7 @@
             <thead>
               <tr>
                 <th>Documento</th>
+                <th>Creado por</th>
                 <th>Firmantes</th>
                 <th>Enviado</th>
                 <th></th>
@@ -452,7 +452,15 @@
           <label class="login-field">
             <span>Teléfono <span class="optional-mark">(opcional)</span></span>
             <div class="phone-input-wrap">
-              <span class="phone-prefix">🇪🇸 +34</span>
+              <button type="button" id="phone-country-btn" class="phone-country-btn" aria-haspopup="listbox" aria-expanded="false">
+                <span id="phone-country-flag">🇪🇸</span>
+                <span id="phone-country-code">+34</span>
+                <svg class="phone-country-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div id="phone-country-dropdown" class="phone-country-dropdown" hidden role="listbox">
+                <input id="phone-country-search" type="text" class="phone-country-search" placeholder="Buscar país…" autocomplete="off" />
+                <ul id="phone-country-list" class="phone-country-list"></ul>
+              </div>
               <input id="signer-phone" type="tel" placeholder="600 000 000" autocomplete="off" inputmode="numeric" />
             </div>
           </label>
