@@ -267,7 +267,7 @@ app.get(
     const log = await one('SELECT * FROM send_log WHERE token = $1', [req.params.token]);
     if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
 
-    const doc = await one('SELECT id, filename, pdf FROM documents WHERE id = $1', [log.document_id]);
+    const doc = await one('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1', [log.document_id]);
     const signer = await one('SELECT * FROM signers WHERE id = $1', [log.signer_id]);
     const field = await one('SELECT * FROM fields WHERE document_id = $1 AND signer_id = $2', [
       log.document_id,
