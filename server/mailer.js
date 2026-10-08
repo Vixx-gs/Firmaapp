@@ -150,6 +150,41 @@ export async function sendOtpEmail({ to, otp, documentName }) {
 }
 
 /**
+ * Envía un recordatorio al firmante cuando lleva tiempo sin firmar.
+ * @param {{ to: string, signLink: string, documentName: string, type: 1|7|14 }} params
+ */
+export async function sendReminderEmail({ to, signLink, documentName, type }) {
+  const transporter = getTransporter();
+  if (!transporter) return; // Si no hay email configurado, silencio.
+
+  const subjectMap = {
+    1: `Recordatorio: tienes una firma pendiente — ${documentName}`,
+    7: `Recordatorio (7 días): firma pendiente — ${documentName}`,
+    14: `⚠️ Último aviso: queda 1 día para firmar — ${documentName}`,
+  };
+  const bodyMap = {
+    1: `<p>Hola,</p><p>Te recordamos que tienes pendiente la firma del documento <strong>${documentName}</strong>.</p><p>Si ya firmaste, puedes ignorar este correo.</p>`,
+    7: `<p>Hola,</p><p>Han pasado 7 días desde que recibiste la solicitud de firma para <strong>${documentName}</strong> y aún no has firmado.</p><p>Pulsa el botón para firmar ahora.</p>`,
+    14: `<p>Hola,</p><p><strong>Último aviso:</strong> queda solo 1 día para firmar el documento <strong>${documentName}</strong>.</p><p>Si no firmas antes de mañana, la solicitud expirará y quedará registrada como <em>No firmada</em>.</p>`,
+  };
+
+  await transporter.sendMail({
+    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
+    replyTo: process.env.GMAIL_USER,
+    to,
+    subject: subjectMap[type],
+    text: `Tienes una firma pendiente en "${documentName}". Firma aquí: ${signLink}`,
+    html: brandedHtml({
+      title: type === 14 ? '⚠️ Último aviso de firma' : 'Recordatorio de firma pendiente',
+      bodyHtml: bodyMap[type],
+      ctaLabel: 'Firmar ahora',
+      ctaUrl: signLink,
+    }),
+    attachments: [logoAttachment()],
+  });
+}
+
+/**
  * Envía el documento ya firmado por todas las partes como copia final a un
  * firmante, con el PDF adjunto.
  * @param {{ to: string, documentName: string, pdfBuffer: Buffer, auditBuffer?: Buffer }} params

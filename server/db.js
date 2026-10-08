@@ -136,6 +136,10 @@ const SCHEMA = `
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS sign_ip TEXT;
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS sign_ua TEXT;
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS otp_verified_at TIMESTAMPTZ;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_1_sent_at TIMESTAMPTZ;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_7_sent_at TIMESTAMPTZ;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_14_sent_at TIMESTAMPTZ;
+  ALTER TABLE send_log ADD COLUMN IF NOT EXISTS expired_at TIMESTAMPTZ;
 `;
 
 /** Crea las tablas si no existen. Se llama una vez al arrancar el servidor. */

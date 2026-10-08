@@ -1139,6 +1139,7 @@ body {
 .registry-status.pending { background: var(--bg-2); color: var(--muted); }
 .registry-status.opened { background: rgba(245, 158, 11, 0.14); color: #92580a; }
 .registry-status.signed { background: rgba(16, 185, 129, 0.14); color: #047857; }
+.registry-status.expired { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
 
 .registry-signers { display: flex; flex-direction: column; gap: 8px; }
 .registry-signer-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

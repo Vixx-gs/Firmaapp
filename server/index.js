@@ -10,6 +10,7 @@ import { all, one, run, withTransaction, initSchema } from './db.js';
 import { sendSignRequestEmail, sendCompletedDocumentEmail, sendOtpEmail } from './mailer.js';
 import { sendSignRequestWhatsapp } from './whatsapp.js';
 import { generateAuditCert } from './audit-cert.js';
+import { startReminders } from './reminders.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -749,6 +750,7 @@ app.get(
           sentAt: log?.sent_at || null,
           openedAt: log?.opened_at || null,
           signedAt: log?.signed_at || null,
+          expiredAt: log?.expired_at || null,
         };
       });
 
@@ -841,6 +843,7 @@ app.get('*', (req, res, next) => {
 async function main() {
   await initSchema();
   await seedUsers();
+  startReminders();
   app.listen(PORT, () => {
     console.log(`Firma API escuchando en http://localhost:${PORT}`);
   });

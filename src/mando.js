@@ -31,6 +31,9 @@ function statusBadge(signer) {
   if (signer.signedAt) {
     return `<span class="registry-status signed" title="Firmado: ${formatDate(signer.signedAt)}">Firmado</span>`;
   }
+  if (signer.expiredAt) {
+    return `<span class="registry-status expired" title="Expirado: ${formatDate(signer.expiredAt)}">No firmada</span>`;
+  }
   if (signer.openedAt) {
     return `<span class="registry-status opened" title="Abierto: ${formatDate(signer.openedAt)}">Abierto</span>`;
   }
@@ -69,6 +72,29 @@ async function downloadDocument(documentId, documentName) {
   }
 }
 
+async function deleteDocument(documentId, documentName, trEl) {
+  if (!confirm(`¿Eliminar "${documentName}"?\nSe borrará el documento y todos sus registros de firma. Esta acción no se puede deshacer.`)) return;
+  try {
+    const res = await fetch(`/api/documents/${documentId}`, {
+      method: 'DELETE',
+      headers: { 'x-firma-role': 'admin' },
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'No se pudo eliminar.');
+    }
+    trEl.remove();
+    if (!bodyEl.querySelector('tr')) {
+      tableEl.hidden = true;
+      emptyEl.hidden = false;
+      emptyEl.querySelector('span').textContent = 'No hay envíos registrados todavía.';
+      loadMoreWrap.hidden = true;
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 function appendRow(doc) {
   const firstSentAt = doc.signers.find((s) => s.sentAt)?.sentAt;
   const tr = document.createElement('tr');
@@ -76,7 +102,7 @@ function appendRow(doc) {
     <td><span class="registry-doc" title="${doc.documentName}">${doc.documentName}</span></td>
     <td><div class="registry-signers">${doc.signers.map(signerLine).join('')}</div></td>
     <td><span class="registry-date">${formatDate(firstSentAt)}</span></td>
-    <td>
+    <td class="mando-actions">
       <button type="button" class="registry-download-btn">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3v12" />
@@ -85,10 +111,22 @@ function appendRow(doc) {
         </svg>
         Descargar
       </button>
+      <button type="button" class="mando-delete-btn">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4h6v2" />
+        </svg>
+        Eliminar
+      </button>
     </td>
   `;
   tr.querySelector('.registry-download-btn').addEventListener('click', () =>
     downloadDocument(doc.documentId, doc.documentName)
+  );
+  tr.querySelector('.mando-delete-btn').addEventListener('click', () =>
+    deleteDocument(doc.documentId, doc.documentName, tr)
   );
   bodyEl.appendChild(tr);
 }
