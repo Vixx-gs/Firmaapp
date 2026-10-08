@@ -1,12 +1,13 @@
 // Autenticación contra el backend (POST /api/auth/login).
 // role 'admin': sube documentos, asigna firmantes y ve el Registro completo.
 // Cualquier otro role es un firmante interno; entra directo en su panel.
-const INTERNAL_ROLES = ['pablo', 'comercial', 'user'];
+// Roles que SOLO pueden firmar (no envían documentos): entran directo en Pendientes.
+const SIGNER_ONLY_ROLES = ['pablo', 'user'];
 const SESSION_KEY = 'firma_auth';
 const USER_KEY = 'firma_user';
 const ROLE_KEY = 'firma_role';
 
-/** Rol de la sesión activa ('admin' | …), o null si no hay sesión. */
+/** Rol de la sesión activa ('admin' | 'comercial' | …), o null si no hay sesión. */
 export function getSessionRole() {
   return sessionStorage.getItem(ROLE_KEY);
 }
@@ -16,9 +17,9 @@ export function getSessionUser() {
   return sessionStorage.getItem(USER_KEY);
 }
 
-/** true si el rol es un firmante interno (entra directo en Pendientes). */
+/** true si el rol es un firmante interno puro (no puede enviar documentos). */
 export function isInternalRole(role) {
-  return role !== null && role !== 'admin';
+  return role !== null && SIGNER_ONLY_ROLES.includes(role);
 }
 
 const loginScreen = document.getElementById('login-screen');
