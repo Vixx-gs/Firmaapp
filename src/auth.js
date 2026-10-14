@@ -3,6 +3,8 @@
 // Cualquier otro role es un firmante interno; entra directo en su panel.
 // Roles que SOLO pueden firmar (no envían documentos): entran directo en Pendientes.
 const SIGNER_ONLY_ROLES = ['pablo', 'user'];
+import { TOKEN_KEY } from './api.js';
+
 const SESSION_KEY = 'firma_auth';
 const USER_KEY = 'firma_user';
 const ROLE_KEY = 'firma_role';
@@ -71,7 +73,8 @@ function closeDropdown() {
 
 /** Comprueba la sesión guardada y engancha el formulario de login/logout. */
 export function initAuth() {
-  if (sessionStorage.getItem(SESSION_KEY) === '1') {
+  // Las sesiones de antes de los tokens no tienen firma_token: vuelven al login.
+  if (sessionStorage.getItem(SESSION_KEY) === '1' && sessionStorage.getItem(TOKEN_KEY)) {
     const savedUser = sessionStorage.getItem(USER_KEY);
     const savedRole = sessionStorage.getItem(ROLE_KEY) || 'admin';
     setUserInitial(savedUser);
@@ -104,6 +107,7 @@ export function initAuth() {
       sessionStorage.setItem(SESSION_KEY, '1');
       sessionStorage.setItem(USER_KEY, data.username);
       sessionStorage.setItem(ROLE_KEY, data.role);
+      sessionStorage.setItem(TOKEN_KEY, data.token);
       setUserInitial(data.username);
       applyRoleUI(data.role);
       loginError.hidden = true;
@@ -115,12 +119,18 @@ export function initAuth() {
     }
   });
 
-  btnLogout.addEventListener('click', () => {
+  function logout() {
     sessionStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(USER_KEY);
     sessionStorage.removeItem(ROLE_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     applyRoleUI(null);
     showLogin();
+  }
+
+  btnLogout.addEventListener('click', logout);
+  document.addEventListener('firma:sessionExpired', () => {
+    if (!app.hidden) logout();
   });
 
   // ---------- Menú de usuario ----------

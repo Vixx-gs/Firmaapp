@@ -12,6 +12,7 @@ import { sendSignRequestWhatsapp } from './whatsapp.js';
 import { generateAuditCert } from './audit-cert.js';
 import { startReminders } from './reminders.js';
 import { isS3Enabled, uploadPdf, downloadPdf, pdfKey, pdfExists } from './storage.js';
+import { createSessionToken, requireAuth } from './session.js';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -82,8 +83,12 @@ function dataUrlToBytes(dataUrl) {
   return Buffer.from(base64, 'base64');
 }
 
+// Roles que solo firman: no pueden enviar documentos (igual que en src/auth.js).
+const SIGNER_ONLY_ROLES = ['pablo', 'user'];
+
+/** Comprueba el rol del token verificado por requireAuth (nunca una cabecera del cliente). */
 function requireAdmin(req, res) {
-  if (req.header('x-firma-role') !== 'admin') {
+  if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'No autorizado.' });
     return false;
   }
@@ -181,7 +186,11 @@ app.get(
  */
 app.post(
   '/api/send-document',
+  requireAuth,
   route(async (req, res) => {
+    if (SIGNER_ONLY_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Tu usuario no puede enviar documentos.' });
+    }
     const { documentName, pdfBase64, signers, fields } = req.body;
 
     if (typeof pdfBase64 !== 'string' || !pdfBase64 || !documentName) {
@@ -215,7 +224,7 @@ app.post(
 
     // Todo o nada: un fallo a mitad no deja un documento a medias guardado.
     await withTransaction(async (client) => {
-      const createdBy = (req.header('x-firma-user') || '').trim() || null;
+      const createdBy = req.user.username;
       await client.query(
         'INSERT INTO documents (id, filename, pdf, pdf_key, created_at, original_hash, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
         [documentId, documentName, storedPdfKey ? null : pdfBuffer, storedPdfKey, nowIso(), originalHash, createdBy]
@@ -576,27 +585,15 @@ app.post(
 
 /**
  * Descarga el PDF tal y como está ahora (sin firmas, con una, o con
- * todas). El admin puede descargar cualquier documento; un firmante solo
- * puede descargar uno que él mismo haya firmado (identificado por email).
+ * todas). Cualquier usuario con sesión puede descargarlo (el Mando es
+ * visible para todos).
  */
 app.get(
   '/api/documents/:id/download',
+  requireAuth,
   route(async (req, res) => {
     const doc = await one('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1', [req.params.id]);
     if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
-
-    if (req.header('x-firma-role') !== 'admin') {
-      const email = (req.query.email || '').trim();
-      const signed = email
-        ? await one(
-            `SELECT 1 FROM signers s
-             JOIN send_log l ON l.signer_id = s.id
-             WHERE s.document_id = $1 AND lower(s.email) = lower($2) AND l.signed_at IS NOT NULL`,
-            [doc.id, email]
-          )
-        : null;
-      if (!signed) return res.status(403).json({ error: 'No autorizado.' });
-    }
 
     const pdfBuf = await getPdfBuffer(doc);
     res.attachment(doc.filename);
@@ -608,6 +605,7 @@ app.get(
 /** DELETE /api/documents/:id  — elimina un documento y todo lo asociado (solo admin). */
 app.delete(
   '/api/documents/:id',
+  requireAuth,
   route(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const doc = await one('SELECT id FROM documents WHERE id = $1', [req.params.id]);
@@ -623,6 +621,7 @@ app.delete(
  */
 app.get(
   '/api/my-registry',
+  requireAuth,
   route(async (req, res) => {
     const email = (req.query.email || '').trim();
     if (!email) return res.status(400).json({ error: 'Falta el email.' });
@@ -652,6 +651,7 @@ app.get(
  */
 app.get(
   '/api/pending',
+  requireAuth,
   route(async (req, res) => {
     const email = (req.query.email || '').trim();
     if (!email) return res.status(400).json({ error: 'Falta el email.' });
@@ -715,6 +715,7 @@ app.get(
  */
 app.get(
   '/api/registry',
+  requireAuth,
   route(async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
@@ -801,7 +802,7 @@ app.get(
 // (carpeta dist/ generada con `npm run build`), para no necesitar un
 // ── Gestión de usuarios (solo admin) ─────────────────────────────────────────
 
-/** POST /api/auth/login  { username, password } → { role, username } */
+/** POST /api/auth/login  { username, password } → { role, username, token } */
 app.post(
   '/api/auth/login',
   route(async (req, res) => {
@@ -812,15 +813,18 @@ app.post(
       [username.trim(), hashPassword(password)]
     );
     if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
-    res.json({ username: user.username, role: user.role });
+    res.json({ username: user.username, role: user.role, token: createSessionToken(user) });
   })
 );
 
-/** GET /api/users → [{ id, username, role, createdAt }]  (solo admin) */
+/**
+ * GET /api/users → [{ id, username, role, createdAt }]
+ * Cualquier usuario con sesión: el selector de firmantes también lo usa.
+ */
 app.get(
   '/api/users',
+  requireAuth,
   route(async (req, res) => {
-    if (!requireAdmin(req, res)) return;
     const rows = await all(
       "SELECT id, username, role, created_at AS \"createdAt\" FROM users WHERE role <> 'admin' ORDER BY created_at DESC"
     );
@@ -831,6 +835,7 @@ app.get(
 /** POST /api/users  { username, password, role }  (solo admin, nunca role=admin) */
 app.post(
   '/api/users',
+  requireAuth,
   route(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const { username, password, role } = req.body || {};
@@ -852,6 +857,7 @@ app.post(
 /** DELETE /api/users/:id  (solo admin, nunca el propio admin) */
 app.delete(
   '/api/users/:id',
+  requireAuth,
   route(async (req, res) => {
     if (!requireAdmin(req, res)) return;
     const user = await one("SELECT role FROM users WHERE id=$1", [req.params.id]);

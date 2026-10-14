@@ -2,6 +2,7 @@
 // por su email de perfil) le toca o le ha tocado firmar. Muestra también el
 // estado de los demás firmantes (p. ej. si el cliente ya firmó) para que un
 // firmante interno (como Pablo, firmante 2) sepa cuándo le toca.
+import { apiFetch } from './api.js';
 import { getProfile } from './profile.js';
 
 const listEl = document.getElementById('pending-list');
@@ -83,7 +84,7 @@ export async function loadPending() {
   }
 
   try {
-    const res = await fetch(`/api/pending?email=${encodeURIComponent(email)}`);
+    const res = await apiFetch(`/api/pending?email=${encodeURIComponent(email)}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo cargar tus pendientes.');
 

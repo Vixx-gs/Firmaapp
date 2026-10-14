@@ -1,4 +1,5 @@
 // Pantalla "Usuarios": el admin puede añadir y eliminar usuarios (nunca admin).
+import { apiFetch } from './api.js';
 const listEl = document.getElementById('usuarios-list');
 const emptyEl = document.getElementById('usuarios-empty');
 const form = document.getElementById('usuarios-form');
@@ -39,10 +40,7 @@ function renderRow(user) {
 async function deleteUser(id, tr) {
   if (!confirm('¿Eliminar este usuario? Esta acción no se puede deshacer.')) return;
   try {
-    const res = await fetch(`/api/users/${id}`, {
-      method: 'DELETE',
-      headers: { 'x-firma-role': 'admin' },
-    });
+    const res = await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo eliminar.');
     tr.remove();
@@ -59,7 +57,7 @@ async function loadUsers() {
   listEl.innerHTML = '';
   emptyEl.hidden = true;
   try {
-    const res = await fetch('/api/users', { headers: { 'x-firma-role': 'admin' } });
+    const res = await apiFetch('/api/users');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo cargar.');
     if (data.users.length === 0) {
@@ -89,9 +87,9 @@ form && form.addEventListener('submit', async (e) => {
   }
   btnAdd.disabled = true;
   try {
-    const res = await fetch('/api/users', {
+    const res = await apiFetch('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-firma-role': 'admin' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, role }),
     });
     const data = await res.json();

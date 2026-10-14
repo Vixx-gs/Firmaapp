@@ -1,4 +1,5 @@
 // "Registro": documentos que el usuario logueado ha firmado él mismo.
+import { apiFetch } from './api.js';
 import { getProfile } from './profile.js';
 
 const tableEl = document.getElementById('registry-table');
@@ -16,9 +17,9 @@ function formatDate(iso) {
   });
 }
 
-async function downloadDocument(documentId, documentName, email) {
+async function downloadDocument(documentId, documentName) {
   try {
-    const res = await fetch(`/api/documents/${documentId}/download?email=${encodeURIComponent(email)}`);
+    const res = await apiFetch(`/api/documents/${documentId}/download`);
     if (!res.ok) throw new Error('No se pudo descargar el documento.');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -45,7 +46,7 @@ export async function loadRegistry() {
   }
 
   try {
-    const res = await fetch(`/api/my-registry?email=${encodeURIComponent(email)}`);
+    const res = await apiFetch(`/api/my-registry?email=${encodeURIComponent(email)}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo cargar el registro.');
 
@@ -76,7 +77,7 @@ export async function loadRegistry() {
         </td>
       `;
       tr.querySelector('.registry-download-btn').addEventListener('click', () =>
-        downloadDocument(doc.documentId, doc.documentName, email)
+        downloadDocument(doc.documentId, doc.documentName)
       );
       bodyEl.appendChild(tr);
     });

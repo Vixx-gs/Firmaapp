@@ -1,4 +1,5 @@
 // "Mando": vista de todos los documentos enviados a firmar, accesible para todos los usuarios.
+import { apiFetch } from './api.js';
 const PAGE_SIZE = 20;
 
 const tableEl = document.getElementById('mando-table');
@@ -54,9 +55,7 @@ function signerLine(signer) {
 
 async function downloadDocument(documentId, documentName) {
   try {
-    const res = await fetch(`/api/documents/${documentId}/download`, {
-      headers: { 'x-firma-role': 'admin' },
-    });
+    const res = await apiFetch(`/api/documents/${documentId}/download`);
     if (!res.ok) throw new Error('No se pudo descargar el documento.');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -109,7 +108,7 @@ async function loadPage() {
   btnLoadMore.disabled = true;
   btnLoadMore.textContent = 'Cargando…';
   try {
-    const res = await fetch(`/api/registry?${currentFilters()}`);
+    const res = await apiFetch(`/api/registry?${currentFilters()}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'No se pudo cargar el listado.');
 

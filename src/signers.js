@@ -1,6 +1,7 @@
 // Lista de usuarios ya usados alguna vez (nombre + teléfono/email), para
 // autocompletar el campo "Usuario" como un buscador de contactos (estilo
 // "Para:" de email) y para poder reutilizar sus datos de contacto.
+import { apiFetch } from './api.js';
 import { getProfile } from './profile.js';
 import { getFullPhone, resetPhoneCountry, setPhoneValue } from './phoneCountry.js';
 
@@ -18,7 +19,7 @@ let appUsers = [];
 
 async function fetchAppUsers() {
   try {
-    const res = await fetch('/api/users', { headers: { 'x-firma-role': 'admin' } });
+    const res = await apiFetch('/api/users');
     if (!res.ok) return;
     const data = await res.json();
     appUsers = (data.users || []).map((u) => ({ name: u.username, email: '' }));
