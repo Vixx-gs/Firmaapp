@@ -841,6 +841,10 @@ app.post(
 app.post(
   '/api/auth/login',
   route(async (req, res) => {
+    // En *.gesticotrans.app solo se entra por el Portal del Empleado.
+    if (req.hostname.endsWith('.gesticotrans.app')) {
+      return res.status(403).json({ error: 'Entra desde el Portal del Empleado: https://gesticotrans.app' });
+    }
     const { username, password } = req.body || {};
     if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales.' });
     const user = await one(

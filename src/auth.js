@@ -84,10 +84,13 @@ function startSession(data) {
   document.dispatchEvent(new CustomEvent('firma:loggedIn', { detail: { role: data.role } }));
 }
 
-/**
- * Entra con la sesión del Portal del Empleado si la hay. Devuelve true si
- * ha entrado; si no (sin sesión del portal o sin acceso a Firma), false.
- */
+// En *.gesticotrans.app solo se entra por el Portal del Empleado: no hay
+// login propio. En local (desarrollo) se mantiene el login de siempre.
+const SOLO_PORTAL = window.location.hostname.endsWith('.gesticotrans.app');
+const PORTAL_URL = 'https://gesticotrans.app';
+const REDIRECT_KEY = 'firma_portal_redirect_at';
+
+/** { status, data } de POST /api/auth/sso (401 sin sesión del portal, 403 sin acceso). */
 async function fetchSso() {
   // Con cuerpo: el cortafuegos (ModSecurity) bloquea los POST sin Content-Length.
   const res = await fetch('/api/auth/sso', {
@@ -95,54 +98,64 @@ async function fetchSso() {
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
   });
-  return res.ok ? res.json() : null;
+  return { status: res.status, data: await res.json().catch(() => ({})) };
 }
 
-/**
- * La sesión del portal manda sobre una sesión local antigua (p. ej. de una
- * cuenta compartida): si es de otra persona o con otro rol, se sustituye.
- */
-async function syncWithPortal() {
-  try {
-    const data = await fetchSso();
-    if (!data) return;
-    const cambia = sessionStorage.getItem(USER_KEY) !== data.username || sessionStorage.getItem(ROLE_KEY) !== data.role;
-    sessionStorage.setItem(TOKEN_KEY, data.token);
-    if (cambia) {
-      sessionStorage.setItem(USER_KEY, data.username);
-      sessionStorage.setItem(ROLE_KEY, data.role);
-      window.location.reload();
-    }
-  } catch {
-    // Sin portal se sigue con la sesión local.
+/** Muestra un aviso en lugar del formulario (sin acceso, error…), con el enlace al portal. */
+function showAviso(msg) {
+  app.hidden = true;
+  loginScreen.hidden = false;
+  loginForm.querySelectorAll('label, button[type="submit"]').forEach((el) => (el.hidden = true));
+  loginError.textContent = msg;
+  loginError.hidden = false;
+}
+
+/** Al login del portal, que devolverá aquí. Si ya se intentó hace poco, aviso (evita bucles). */
+function irAlPortal() {
+  const last = Number(sessionStorage.getItem(REDIRECT_KEY) || 0);
+  if (Date.now() - last < 20000) {
+    showAviso('No se ha podido iniciar sesión con el Portal del Empleado. Inténtalo de nuevo desde el portal.');
+    return;
   }
+  sessionStorage.setItem(REDIRECT_KEY, String(Date.now()));
+  window.location.href = `${PORTAL_URL}/?next=${encodeURIComponent(window.location.href)}`;
 }
 
+/** Entra con la sesión del portal. Devuelve true si ha entrado. */
 async function trySso() {
   try {
-    const data = await fetchSso();
-    if (!data) return false;
-    startSession(data);
-    return true;
+    const { status, data } = await fetchSso();
+    if (status === 200) {
+      sessionStorage.removeItem(REDIRECT_KEY);
+      startSession(data);
+      return true;
+    }
+    if (SOLO_PORTAL) {
+      if (status === 401) irAlPortal();
+      else if (status === 403) showAviso(data.error || 'No tienes acceso a Firma.');
+      else showAviso('No se ha podido conectar con el Portal del Empleado. Inténtalo de nuevo en unos minutos.');
+    }
+    return false;
   } catch {
+    if (SOLO_PORTAL) showAviso('No se ha podido conectar con el Portal del Empleado. Inténtalo de nuevo en unos minutos.');
     return false;
   }
 }
 
 /** Comprueba la sesión guardada y engancha el formulario de login/logout. */
 export function initAuth() {
-  // Las sesiones de antes de los tokens no tienen firma_token: vuelven al login.
-  if (sessionStorage.getItem(SESSION_KEY) === '1' && sessionStorage.getItem(TOKEN_KEY)) {
-    const savedUser = sessionStorage.getItem(USER_KEY);
-    const savedRole = sessionStorage.getItem(ROLE_KEY) || 'admin';
-    setUserInitial(savedUser);
-    applyRoleUI(savedRole);
+  // Mientras se comprueba la sesión no se enseña nada.
+  loginScreen.hidden = true;
+  app.hidden = true;
+  if (SOLO_PORTAL) {
+    // La sesión del portal manda siempre: una sesión local antigua no vale.
+    sessionStorage.removeItem(SESSION_KEY);
+    trySso();
+  } else if (sessionStorage.getItem(SESSION_KEY) === '1' && sessionStorage.getItem(TOKEN_KEY)) {
+    setUserInitial(sessionStorage.getItem(USER_KEY));
+    applyRoleUI(sessionStorage.getItem(ROLE_KEY) || 'admin');
     showApp();
-    syncWithPortal();
   } else {
-    // Mientras se comprueba la sesión del portal no se enseña nada.
-    loginScreen.hidden = true;
-    app.hidden = true;
     trySso().then((ok) => ok || showLogin());
   }
 
@@ -185,12 +198,12 @@ export function initAuth() {
   // Cerrar sesión devuelve al Portal del Empleado.
   btnLogout.addEventListener('click', () => {
     logout();
-    window.location.href = 'https://gesticotrans.app';
+    window.location.href = PORTAL_URL;
   });
   // Token caducado: si sigue la sesión del portal se renueva sin pedir nada.
   document.addEventListener('firma:sessionExpired', async () => {
     if (app.hidden) return;
-    if (!(await trySso())) logout();
+    if (!(await trySso()) && !SOLO_PORTAL) logout();
   });
 
   // ---------- Menú de usuario ----------
