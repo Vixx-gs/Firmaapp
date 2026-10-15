@@ -71,6 +71,34 @@ function closeDropdown() {
   btnUser.setAttribute('aria-expanded', 'false');
 }
 
+/** Guarda la sesión (de login o del portal) y entra en la app. */
+function startSession(data) {
+  sessionStorage.setItem(SESSION_KEY, '1');
+  sessionStorage.setItem(USER_KEY, data.username);
+  sessionStorage.setItem(ROLE_KEY, data.role);
+  sessionStorage.setItem(TOKEN_KEY, data.token);
+  setUserInitial(data.nombre || data.username);
+  applyRoleUI(data.role);
+  loginError.hidden = true;
+  showApp();
+  document.dispatchEvent(new CustomEvent('firma:loggedIn', { detail: { role: data.role } }));
+}
+
+/**
+ * Entra con la sesión del Portal del Empleado si la hay. Devuelve true si
+ * ha entrado; si no (sin sesión del portal o sin acceso a Firma), false.
+ */
+async function trySso() {
+  try {
+    const res = await fetch('/api/auth/sso', { method: 'POST' });
+    if (!res.ok) return false;
+    startSession(await res.json());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Comprueba la sesión guardada y engancha el formulario de login/logout. */
 export function initAuth() {
   // Las sesiones de antes de los tokens no tienen firma_token: vuelven al login.
@@ -81,7 +109,10 @@ export function initAuth() {
     applyRoleUI(savedRole);
     showApp();
   } else {
-    showLogin();
+    // Mientras se comprueba la sesión del portal no se enseña nada.
+    loginScreen.hidden = true;
+    app.hidden = true;
+    trySso().then((ok) => ok || showLogin());
   }
 
   loginForm.addEventListener('submit', async (e) => {
@@ -104,15 +135,7 @@ export function initAuth() {
         loginPass.focus();
         return;
       }
-      sessionStorage.setItem(SESSION_KEY, '1');
-      sessionStorage.setItem(USER_KEY, data.username);
-      sessionStorage.setItem(ROLE_KEY, data.role);
-      sessionStorage.setItem(TOKEN_KEY, data.token);
-      setUserInitial(data.username);
-      applyRoleUI(data.role);
-      loginError.hidden = true;
-      showApp();
-      document.dispatchEvent(new CustomEvent('firma:loggedIn', { detail: { role: data.role } }));
+      startSession(data);
     } catch {
       loginError.textContent = 'No se pudo conectar con el servidor.';
       loginError.hidden = false;
@@ -129,8 +152,10 @@ export function initAuth() {
   }
 
   btnLogout.addEventListener('click', logout);
-  document.addEventListener('firma:sessionExpired', () => {
-    if (!app.hidden) logout();
+  // Token caducado: si sigue la sesión del portal se renueva sin pedir nada.
+  document.addEventListener('firma:sessionExpired', async () => {
+    if (app.hidden) return;
+    if (!(await trySso())) logout();
   });
 
   // ---------- Menú de usuario ----------

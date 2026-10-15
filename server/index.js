@@ -802,6 +802,41 @@ app.get(
 // (carpeta dist/ generada con `npm run build`), para no necesitar un
 // ── Gestión de usuarios (solo admin) ─────────────────────────────────────────
 
+// ── Inicio de sesión con el Portal del Empleado (SSO) ────────────────────────
+// El navegador envía la cookie de sesión del portal a todo *.gesticotrans.app.
+// Se la reenviamos al portal, que dice quién es y qué rol tiene en Firma.
+const PORTAL_URL = process.env.PORTAL_URL || 'https://gesticotrans.app';
+const PORTAL_COOKIE = '__Secure-gt_session';
+
+function readCookie(req, name) {
+  for (const part of (req.headers.cookie || '').split(';')) {
+    const [k, ...v] = part.trim().split('=');
+    if (k === name) return v.join('=');
+  }
+  return null;
+}
+
+/** POST /api/auth/sso → { username, nombre, role, token } con la sesión del portal. */
+app.post(
+  '/api/auth/sso',
+  route(async (req, res) => {
+    const cookie = readCookie(req, PORTAL_COOKIE);
+    if (!cookie) return res.status(401).json({ error: 'No has iniciado sesión en el portal.' });
+    const r = await fetch(`${PORTAL_URL}/api/me`, {
+      headers: { cookie: `${PORTAL_COOKIE}=${cookie}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.status === 401 || r.status === 403) {
+      return res.status(401).json({ error: 'La sesión del portal no es válida.' });
+    }
+    if (!r.ok) throw new Error('El portal no responde.');
+    const me = await r.json();
+    const role = me.access?.firma;
+    if (!role) return res.status(403).json({ error: 'No tienes acceso a Firma. Pídelo a un administrador del portal.' });
+    res.json({ username: me.username, nombre: me.nombre, role, token: createSessionToken({ username: me.username, role }) });
+  })
+);
+
 /** POST /api/auth/login  { username, password } → { role, username, token } */
 app.post(
   '/api/auth/login',

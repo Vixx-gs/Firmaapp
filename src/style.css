@@ -964,6 +964,15 @@ body {
   padding: 8px 10px;
 }
 .login-submit { width: 100%; max-width: none; padding: 13px 0; margin-top: 4px; }
+.login-portal {
+  display: block;
+  margin-top: 14px;
+  text-align: center;
+  font-size: 14px;
+  color: inherit;
+  opacity: 0.75;
+}
+.login-portal:hover { opacity: 1; }
 
 /* ---------- Modal de datos del firmante (reutiliza .login-field) ---------- */
 #signer-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
