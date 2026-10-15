@@ -816,18 +816,25 @@ function readCookie(req, name) {
   return null;
 }
 
-/** POST /api/auth/sso → { username, nombre, role, token } con la sesión del portal. */
+/**
+ * POST /api/auth/sso { launch } → { username, nombre, role, token }.
+ * Solo con el pase que da el portal al pulsar la tarjeta de Firma: el portal
+ * comprueba que el pase es para Firma y de la persona con la sesión abierta.
+ */
 app.post(
   '/api/auth/sso',
   route(async (req, res) => {
     const cookie = readCookie(req, PORTAL_COOKIE);
-    if (!cookie) return res.status(401).json({ error: 'No has iniciado sesión en el portal.' });
-    const r = await fetch(`${PORTAL_URL}/api/me`, {
-      headers: { cookie: `${PORTAL_COOKIE}=${cookie}` },
+    const launch = req.body?.launch;
+    if (!cookie || !launch) return res.status(401).json({ error: 'Entra desde el Portal del Empleado.' });
+    const r = await fetch(`${PORTAL_URL}/api/sso/verify`, {
+      method: 'POST',
+      headers: { cookie: `${PORTAL_COOKIE}=${cookie}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ launch, app: 'firma' }),
       signal: AbortSignal.timeout(8000),
     });
     if (r.status === 401 || r.status === 403) {
-      return res.status(401).json({ error: 'La sesión del portal no es válida.' });
+      return res.status(401).json({ error: 'Entra desde el Portal del Empleado.' });
     }
     if (!r.ok) throw new Error('El portal no responde.');
     const me = await r.json();
