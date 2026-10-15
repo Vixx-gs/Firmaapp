@@ -90,7 +90,12 @@ function startSession(data) {
  */
 async function trySso() {
   try {
-    const res = await fetch('/api/auth/sso', { method: 'POST' });
+    // Con cuerpo: el cortafuegos (ModSecurity) bloquea los POST sin Content-Length.
+    const res = await fetch('/api/auth/sso', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
     if (!res.ok) return false;
     startSession(await res.json());
     return true;
