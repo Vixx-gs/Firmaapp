@@ -88,16 +88,41 @@ function startSession(data) {
  * Entra con la sesión del Portal del Empleado si la hay. Devuelve true si
  * ha entrado; si no (sin sesión del portal o sin acceso a Firma), false.
  */
+async function fetchSso() {
+  // Con cuerpo: el cortafuegos (ModSecurity) bloquea los POST sin Content-Length.
+  const res = await fetch('/api/auth/sso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  return res.ok ? res.json() : null;
+}
+
+/**
+ * La sesión del portal manda sobre una sesión local antigua (p. ej. de una
+ * cuenta compartida): si es de otra persona o con otro rol, se sustituye.
+ */
+async function syncWithPortal() {
+  try {
+    const data = await fetchSso();
+    if (!data) return;
+    const cambia = sessionStorage.getItem(USER_KEY) !== data.username || sessionStorage.getItem(ROLE_KEY) !== data.role;
+    sessionStorage.setItem(TOKEN_KEY, data.token);
+    if (cambia) {
+      sessionStorage.setItem(USER_KEY, data.username);
+      sessionStorage.setItem(ROLE_KEY, data.role);
+      window.location.reload();
+    }
+  } catch {
+    // Sin portal se sigue con la sesión local.
+  }
+}
+
 async function trySso() {
   try {
-    // Con cuerpo: el cortafuegos (ModSecurity) bloquea los POST sin Content-Length.
-    const res = await fetch('/api/auth/sso', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    });
-    if (!res.ok) return false;
-    startSession(await res.json());
+    const data = await fetchSso();
+    if (!data) return false;
+    startSession(data);
     return true;
   } catch {
     return false;
@@ -113,6 +138,7 @@ export function initAuth() {
     setUserInitial(savedUser);
     applyRoleUI(savedRole);
     showApp();
+    syncWithPortal();
   } else {
     // Mientras se comprueba la sesión del portal no se enseña nada.
     loginScreen.hidden = true;
@@ -156,7 +182,11 @@ export function initAuth() {
     showLogin();
   }
 
-  btnLogout.addEventListener('click', logout);
+  // Cerrar sesión devuelve al Portal del Empleado.
+  btnLogout.addEventListener('click', () => {
+    logout();
+    window.location.href = 'https://gesticotrans.app';
+  });
   // Token caducado: si sigue la sesión del portal se renueva sin pedir nada.
   document.addEventListener('firma:sessionExpired', async () => {
     if (app.hidden) return;
