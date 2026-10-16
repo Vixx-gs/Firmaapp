@@ -36,7 +36,6 @@ const userInitial = document.getElementById('user-initial');
 const btnUser = document.getElementById('btn-user');
 const userDropdown = document.getElementById('user-dropdown');
 const menuMando = document.getElementById('menu-mando');
-const menuUsuarios = document.getElementById('menu-usuarios');
 
 function setUserInitial(username) {
   userInitial.textContent = (username || 'A').trim().charAt(0).toUpperCase() || 'A';
@@ -45,7 +44,6 @@ function setUserInitial(username) {
 function applyRoleUI(role) {
   document.body.classList.toggle('role-pablo', isInternalRole(role));
   if (menuMando) menuMando.hidden = role === null;
-  if (menuUsuarios) menuUsuarios.hidden = role !== 'admin';
 }
 
 function showApp() {

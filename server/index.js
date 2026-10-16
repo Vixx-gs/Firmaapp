@@ -14,10 +14,6 @@ import { startReminders } from './reminders.js';
 import { isS3Enabled, uploadPdf, downloadPdf, pdfKey, pdfExists } from './storage.js';
 import { createSessionToken, requireAuth } from './session.js';
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -836,53 +832,23 @@ app.post(
 );
 
 /**
- * GET /api/users → [{ id, username, role, createdAt }]
- * Cualquier usuario con sesión: el selector de firmantes también lo usa.
+ * GET /api/users → { users: [{ username, nombre }] }: las personas con acceso a
+ * Firma en el Portal del Empleado (las sugerencias del selector de firmantes).
+ * Los usuarios se gestionan solo en el portal.
  */
 app.get(
   '/api/users',
   requireAuth,
   route(async (req, res) => {
-    const rows = await all(
-      "SELECT id, username, role, created_at AS \"createdAt\" FROM users WHERE role <> 'admin' ORDER BY created_at DESC"
-    );
-    res.json({ users: rows });
-  })
-);
-
-/** POST /api/users  { username, password, role }  (solo admin, nunca role=admin) */
-app.post(
-  '/api/users',
-  requireAuth,
-  route(async (req, res) => {
-    if (!requireAdmin(req, res)) return;
-    const { username, password, role } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: 'Faltan username y password.' });
-    if (!role || role === 'admin') return res.status(400).json({ error: 'Rol no válido.' });
-    const trimmed = username.trim();
-    if (trimmed.toLowerCase() === 'admin') return res.status(400).json({ error: 'Nombre reservado.' });
-    const exists = await one('SELECT id FROM users WHERE lower(username)=$1', [trimmed.toLowerCase()]);
-    if (exists) return res.status(409).json({ error: 'El usuario ya existe.' });
-    const id = randomUUID();
-    await run(
-      'INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)',
-      [id, trimmed, hashPassword(password), role]
-    );
-    res.status(201).json({ id, username: trimmed, role });
-  })
-);
-
-/** DELETE /api/users/:id  (solo admin, nunca el propio admin) */
-app.delete(
-  '/api/users/:id',
-  requireAuth,
-  route(async (req, res) => {
-    if (!requireAdmin(req, res)) return;
-    const user = await one("SELECT role FROM users WHERE id=$1", [req.params.id]);
-    if (!user) return res.status(404).json({ error: 'Usuario no encontrado.' });
-    if (user.role === 'admin') return res.status(403).json({ error: 'No se puede eliminar al admin.' });
-    await run('DELETE FROM users WHERE id=$1', [req.params.id]);
-    res.json({ ok: true });
+    const cookie = readCookie(req, PORTAL_COOKIE);
+    if (!cookie) return res.json({ users: [] });
+    const r = await fetch(`${PORTAL_URL}/api/apps/firma/people`, {
+      headers: { cookie: `${PORTAL_COOKIE}=${cookie}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return res.json({ users: [] });
+    const { people = [] } = await r.json();
+    res.json({ users: people });
   })
 );
 

@@ -14,7 +14,7 @@ function normalizePhone(phone) {
   return p.startsWith('+') ? p : `+34${p}`;
 }
 
-// Usuarios del sistema cargados desde la API (se refrescan al abrir el modal).
+// Personas con acceso a Firma en el portal (se refrescan al abrir el modal).
 let appUsers = [];
 
 async function fetchAppUsers() {
@@ -22,7 +22,7 @@ async function fetchAppUsers() {
     const res = await apiFetch('/api/users');
     if (!res.ok) return;
     const data = await res.json();
-    appUsers = (data.users || []).map((u) => ({ name: u.username, email: '' }));
+    appUsers = (data.users || []).map((u) => ({ name: u.nombre || u.username, email: '' }));
   } catch {
     // sin conexión o sin permisos: no pasa nada, se queda vacío
   }
