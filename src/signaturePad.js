@@ -14,8 +14,11 @@ const sizeRange = document.getElementById('size-range');
 let pad = null;
 let resolver = null;
 
+// Tinta azul: al imprimir el documento la firma se distingue del texto.
+const AZUL_FIRMA = '#1d4ed8';
+
 // Preferencias del trazo, persisten entre firmas dentro de la sesión.
-let currentColor = '#0a1a3a';
+let currentColor = AZUL_FIRMA;
 let currentStyle = 'pen'; // 'pen' | 'marker' | 'pencil'
 let currentSize = Number(sizeRange.value); // 1..5
 
@@ -95,7 +98,7 @@ const padTools = document.querySelector('.pad-tools');
  * Abre el modal de firma. Resuelve con un dataURL PNG (fondo transparente)
  * o con `null` si el usuario cancela.
  * @param {{simple?: boolean}} [opts]  En modo simple se oculta la barra de
- *   herramientas y se fuerza siempre negro, pluma y tamaño medio (se usa en
+ *   herramientas y se fuerza siempre azul, pluma y tamaño medio (se usa en
  *   el enlace de firma externo, donde no se permite elegir nada).
  * @returns {Promise<string|null>}
  */
@@ -121,7 +124,7 @@ export function openSignaturePad(opts = {}) {
   }
 
   if (opts.simple) {
-    currentColor = '#000000';
+    currentColor = AZUL_FIRMA;
     currentStyle = 'pen';
     currentSize = 2;
   }
