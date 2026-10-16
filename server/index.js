@@ -297,6 +297,10 @@ app.get(
   })
 );
 
+// Código de verificación (OTP) del enlace de firma.
+const OTP_VALIDEZ_MIN = 10; // vale 10 minutos
+const OTP_REUSO_MIN = 3;    // durante los 3 primeros, "Reenviar" manda el mismo
+
 /** POST /api/sign/:token/request-otp  — genera y envía un OTP al email del firmante. */
 app.post(
   '/api/sign/:token/request-otp',
@@ -305,15 +309,27 @@ app.post(
     if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
     if (!log.email) return res.status(400).json({ error: 'El firmante no tiene email registrado.' });
 
-    // Invalida OTPs anteriores no usados para este send_log
-    await run("UPDATE otp_codes SET used_at = now() WHERE send_log_id = $1 AND used_at IS NULL", [log.id]);
-
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    await run(
-      'INSERT INTO otp_codes (id, send_log_id, code, expires_at) VALUES ($1, $2, $3, $4)',
-      [randomUUID(), log.id, otp, expiresAt]
+    // Si se pidió un código hace menos de OTP_REUSO_MIN minutos, se reenvía el
+    // mismo: así no cambia mientras el firmante espera el correo o pulsa
+    // "Reenviar". Pasado ese tiempo se genera otro y el anterior deja de valer.
+    // (Cada código vale OTP_VALIDEZ_MIN minutos desde que se generó.)
+    const reciente = await one(
+      `SELECT code FROM otp_codes
+        WHERE send_log_id = $1 AND used_at IS NULL
+          AND expires_at > now() + make_interval(mins => $2)
+        ORDER BY expires_at DESC LIMIT 1`,
+      [log.id, OTP_VALIDEZ_MIN - OTP_REUSO_MIN]
     );
+    let otp = reciente?.code;
+    if (!otp) {
+      await run("UPDATE otp_codes SET used_at = now() WHERE send_log_id = $1 AND used_at IS NULL", [log.id]);
+      otp = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + OTP_VALIDEZ_MIN * 60 * 1000).toISOString();
+      await run(
+        'INSERT INTO otp_codes (id, send_log_id, code, expires_at) VALUES ($1, $2, $3, $4)',
+        [randomUUID(), log.id, otp, expiresAt]
+      );
+    }
 
     const doc = await one('SELECT filename FROM documents WHERE id = $1', [log.document_id]);
     await sendOtpEmail({ to: log.email, otp, documentName: doc?.filename || log.document_name });
