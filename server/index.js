@@ -18,24 +18,6 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-async function seedUsers() {
-  const SEEDS = [
-    { username: 'admin', password: process.env.ADMIN_PASSWORD || 'Admin123$', role: 'admin' },
-    { username: 'Pablo', password: process.env.PABLO_PASSWORD || 'Pablo345!', role: 'pablo' },
-    { username: 'Comercial', password: process.env.COMERCIAL_PASSWORD || 'Com852!', role: 'comercial' },
-  ];
-  for (const u of SEEDS) {
-    const existing = await one('SELECT id FROM users WHERE lower(username) = lower($1)', [u.username]);
-    if (!existing) {
-      await run(
-        'INSERT INTO users (id, username, password_hash, role) VALUES ($1, $2, $3, $4)',
-        [randomUUID(), u.username, hashPassword(u.password), u.role]
-      );
-      console.log(`Usuario ${u.username} creado.`);
-    }
-  }
-}
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -844,22 +826,12 @@ app.post(
   })
 );
 
-/** POST /api/auth/login  { username, password } → { role, username, token } */
+/** POST /api/auth/login: retirado (403). Se mantiene para que el frontend antiguo reciba un mensaje claro. */
 app.post(
   '/api/auth/login',
   route(async (req, res) => {
-    // En *.gesticotrans.app solo se entra por el Portal del Empleado.
-    if (req.hostname.endsWith('.gesticotrans.app')) {
-      return res.status(403).json({ error: 'Entra desde el Portal del Empleado: https://gesticotrans.app' });
-    }
-    const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: 'Faltan credenciales.' });
-    const user = await one(
-      'SELECT username, role FROM users WHERE lower(username)=lower($1) AND password_hash=$2',
-      [username.trim(), hashPassword(password)]
-    );
-    if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
-    res.json({ username: user.username, role: user.role, token: createSessionToken(user) });
+    // Las cuentas propias de Firma se retiraron: solo se entra por el Portal del Empleado.
+    res.status(403).json({ error: 'Entra desde el Portal del Empleado: https://gesticotrans.app' });
   })
 );
 
@@ -926,7 +898,6 @@ app.get('*', (req, res, next) => {
 // Sin top-level await (Phusion Passenger carga este archivo con require()).
 async function main() {
   await initSchema();
-  await seedUsers();
   startReminders();
   app.listen(PORT, () => {
     console.log(`Firma API escuchando en http://localhost:${PORT}`);
