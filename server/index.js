@@ -300,6 +300,8 @@ app.get(
 // Código de verificación (OTP) del enlace de firma.
 const OTP_VALIDEZ_MIN = 10; // vale 10 minutos
 const OTP_REUSO_MIN = 3;    // durante los 3 primeros, "Reenviar" manda el mismo
+const OTP_MAX_INTENTOS = 5; // fallos permitidos por código; luego hay que pedir otro
+const OTP_MAX_ENVIOS = 5;   // correos por código (evita usar el enlace para spam)
 
 /** POST /api/sign/:token/request-otp  — genera y envía un OTP al email del firmante. */
 app.post(
@@ -314,14 +316,19 @@ app.post(
     // "Reenviar". Pasado ese tiempo se genera otro y el anterior deja de valer.
     // (Cada código vale OTP_VALIDEZ_MIN minutos desde que se generó.)
     const reciente = await one(
-      `SELECT code FROM otp_codes
+      `SELECT id, code, sends FROM otp_codes
         WHERE send_log_id = $1 AND used_at IS NULL
           AND expires_at > now() + make_interval(mins => $2)
         ORDER BY expires_at DESC LIMIT 1`,
       [log.id, OTP_VALIDEZ_MIN - OTP_REUSO_MIN]
     );
     let otp = reciente?.code;
-    if (!otp) {
+    if (reciente) {
+      if (reciente.sends >= OTP_MAX_ENVIOS) {
+        return res.status(429).json({ error: `Ya te hemos enviado el código varias veces. Revisa tu correo (también la carpeta de spam) o inténtalo de nuevo en ${OTP_REUSO_MIN} minutos.` });
+      }
+      await run('UPDATE otp_codes SET sends = sends + 1 WHERE id = $1', [reciente.id]);
+    } else {
       await run("UPDATE otp_codes SET used_at = now() WHERE send_log_id = $1 AND used_at IS NULL", [log.id]);
       otp = String(Math.floor(100000 + Math.random() * 900000));
       const expiresAt = new Date(Date.now() + OTP_VALIDEZ_MIN * 60 * 1000).toISOString();
@@ -356,12 +363,21 @@ app.post(
     const log = await one('SELECT * FROM send_log WHERE token = $1', [req.params.token]);
     if (!log) return res.status(404).json({ error: 'Enlace no válido.' });
 
+    // Código vigente de este enlace (solo hay uno a la vez).
     const otpRow = await one(
-      `SELECT * FROM otp_codes WHERE send_log_id = $1 AND code = $2 AND used_at IS NULL AND expires_at > now()
+      `SELECT * FROM otp_codes WHERE send_log_id = $1 AND used_at IS NULL AND expires_at > now()
        ORDER BY expires_at DESC LIMIT 1`,
-      [log.id, code.trim()]
+      [log.id]
     );
-    if (!otpRow) return res.status(401).json({ error: 'Código incorrecto o caducado.' });
+    if (!otpRow) return res.status(401).json({ error: 'Código caducado. Pide uno nuevo.' });
+    if (otpRow.code !== String(code).trim()) {
+      const { attempts } = await one('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = $1 RETURNING attempts', [otpRow.id]);
+      if (attempts >= OTP_MAX_INTENTOS) {
+        await run('UPDATE otp_codes SET used_at = now() WHERE id = $1', [otpRow.id]);
+        return res.status(429).json({ error: 'Demasiados intentos fallidos. Pide un código nuevo.' });
+      }
+      return res.status(401).json({ error: `Código incorrecto. Te quedan ${OTP_MAX_INTENTOS - attempts} intentos.` });
+    }
 
     await run('UPDATE otp_codes SET used_at = now() WHERE id = $1', [otpRow.id]);
     const verifiedAt = nowIso();

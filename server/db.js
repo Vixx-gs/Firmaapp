@@ -143,6 +143,8 @@ const SCHEMA = `
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_7_sent_at TIMESTAMPTZ;
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_14_sent_at TIMESTAMPTZ;
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS expired_at TIMESTAMPTZ;
+  ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS sends INTEGER NOT NULL DEFAULT 1;
 `;
 
 /** Crea las tablas si no existen. Se llama una vez al arrancar el servidor. */
