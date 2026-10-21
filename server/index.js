@@ -11,7 +11,7 @@ import { sendSignRequestEmail, sendCompletedDocumentEmail, sendOtpEmail } from '
 import { sendSignRequestWhatsapp } from './whatsapp.js';
 import { generateAuditCert } from './audit-cert.js';
 import { startReminders } from './reminders.js';
-import { isS3Enabled, uploadPdf, downloadPdf, pdfKey, pdfExists } from './storage.js';
+import { isS3Enabled, uploadPdf, downloadPdf, pdfKey, pdfExists, deletePdf } from './storage.js';
 import { createSessionToken, requireAuth } from './session.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -612,15 +612,24 @@ app.get(
   })
 );
 
-/** DELETE /api/documents/:id  — elimina un documento y todo lo asociado (solo admin). */
+/**
+ * DELETE /api/documents/:id — elimina un documento y todo lo asociado (firmantes,
+ * enlaces de firma, registro) y su PDF en S3. Solo admin (botón "Borrar" de Mando).
+ */
 app.delete(
   '/api/documents/:id',
   requireAuth,
   route(async (req, res) => {
     if (!requireAdmin(req, res)) return;
-    const doc = await one('SELECT id FROM documents WHERE id = $1', [req.params.id]);
+    const doc = await one('SELECT id, filename, pdf_key FROM documents WHERE id = $1', [req.params.id]);
     if (!doc) return res.status(404).json({ error: 'Documento no encontrado.' });
     await run('DELETE FROM documents WHERE id = $1', [req.params.id]);
+    console.log(`Documento borrado por ${req.user.username}: ${doc.filename} (${doc.id})`);
+    try {
+      await deletePdf(doc.pdf_key);
+    } catch (err) {
+      console.error(`No se pudo borrar el PDF de ${doc.id} en S3:`, err.message);
+    }
     res.json({ ok: true });
   })
 );

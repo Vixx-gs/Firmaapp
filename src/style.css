@@ -1464,3 +1464,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6
 a.btn[hidden] { display: none; }
 
 .footer-logout[hidden] { display: none; }
+
+/* Mando: borrar documento (solo admin). */
+.mando-delete-btn { color: #dc2626; margin-left: 6px; }
+.mando-delete-btn:hover { background: #fee2e2; border-color: #fca5a5; }

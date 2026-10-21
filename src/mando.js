@@ -1,5 +1,6 @@
 // "Mando": vista de todos los documentos enviados a firmar, accesible para todos los usuarios.
 import { apiFetch } from './api.js';
+import { getSessionRole } from './auth.js';
 const PAGE_SIZE = 20;
 
 const tableEl = document.getElementById('mando-table');
@@ -69,6 +70,31 @@ async function downloadDocument(documentId, documentName) {
   }
 }
 
+/** Solo admin: borra el documento (PDF, firmantes y enlaces de firma) tras confirmarlo. */
+async function deleteDocument(doc, tr) {
+  const pendientes = doc.signers.some((s) => s.sentAt && !s.signedAt);
+  const aviso = pendientes ? '\n\nTiene firmas pendientes: sus enlaces de firma dejarán de funcionar.' : '';
+  if (!confirm(`¿Borrar «${doc.documentName}»?${aviso}\n\nSe borra para siempre: no se puede deshacer.`)) return;
+  try {
+    // Con cuerpo: el cortafuegos (ModSecurity) bloquea peticiones sin Content-Length.
+    const res = await apiFetch(`/api/documents/${doc.documentId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'No se pudo borrar el documento.');
+    tr.remove();
+    if (!bodyEl.children.length) {
+      tableEl.hidden = true;
+      emptyEl.hidden = false;
+      emptyEl.querySelector('span').textContent = 'No hay envíos registrados todavía.';
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 function appendRow(doc) {
   const firstSentAt = doc.signers.find((s) => s.sentAt)?.sentAt;
   const tr = document.createElement('tr');
@@ -86,11 +112,21 @@ function appendRow(doc) {
         </svg>
         Descargar
       </button>
+      ${getSessionRole() === 'admin' ? `
+      <button type="button" class="registry-download-btn mando-delete-btn" title="Borrar el documento">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+        </svg>
+        Borrar
+      </button>` : ''}
     </td>
   `;
   tr.querySelector('.registry-download-btn').addEventListener('click', () =>
     downloadDocument(doc.documentId, doc.documentName)
   );
+  tr.querySelector('.mando-delete-btn')?.addEventListener('click', () => deleteDocument(doc, tr));
   bodyEl.appendChild(tr);
 }
 

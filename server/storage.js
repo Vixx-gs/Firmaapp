@@ -2,7 +2,7 @@
 // Si las variables S3_* no están configuradas, las funciones lanzan error.
 // El código que las llama debe comprobar isS3Enabled() primero.
 
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 let client = null;
 
@@ -52,6 +52,13 @@ export async function downloadPdf(key) {
   if (!s3) throw new Error('S3 no configurado.');
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
   return Buffer.from(await res.Body.transformToByteArray());
+}
+
+/** Borra el PDF de un documento en S3 (si S3 no está configurado, no hace nada). */
+export async function deletePdf(key) {
+  const s3 = getClient();
+  if (!s3 || !key) return;
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }));
 }
 
 /** Comprueba si un objeto existe en S3 sin descargarlo. Devuelve true/false. */
