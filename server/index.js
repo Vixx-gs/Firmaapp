@@ -854,6 +854,30 @@ app.post(
   })
 );
 
+/**
+ * GET /api/portal/resumen → { avisos: [{ n, texto }] } para la tarjeta de Firma
+ * en el portal: documentos enviados por la persona que aún esperan alguna firma.
+ * Lo llama el servidor del portal reenviando la cookie de su sesión.
+ */
+app.get(
+  '/api/portal/resumen',
+  route(async (req, res) => {
+    const cookie = readCookie(req, PORTAL_COOKIE);
+    if (!cookie) return res.status(401).json({ error: 'Sin sesión del portal.' });
+    const r = await fetch(`${PORTAL_URL}/api/me`, { headers: { cookie: `${PORTAL_COOKIE}=${cookie}` }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(401).json({ error: 'Sin sesión del portal.' });
+    const me = await r.json();
+    if (!me.access?.firma) return res.status(403).json({ error: 'Sin acceso a Firma.' });
+    const { n } = await one(
+      `SELECT count(DISTINCT d.id)::int AS n
+         FROM documents d JOIN send_log l ON l.document_id = d.id
+        WHERE d.created_by = $1 AND l.signed_at IS NULL AND l.expired_at IS NULL`,
+      [me.username]
+    );
+    res.json({ avisos: n ? [{ n, texto: n === 1 ? '1 documento esperando firma' : `${n} documentos esperando firma` }] : [] });
+  })
+);
+
 /** POST /api/auth/login: retirado (403). Se mantiene para que el frontend antiguo reciba un mensaje claro. */
 app.post(
   '/api/auth/login',
