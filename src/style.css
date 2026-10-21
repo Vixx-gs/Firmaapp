@@ -1458,3 +1458,7 @@ body.role-pablo #btn-back {
   cursor: pointer;
   line-height: 1;
 }
+
+/* Volver al Portal del Empleado (solo en *.gesticotrans.app). */
+a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+a.btn[hidden] { display: none; }

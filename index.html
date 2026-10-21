@@ -9,7 +9,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  </head>
+      <!-- Modo oscuro compartido con el Portal del Empleado (cookie gt_tema de *.gesticotrans.app;
+         sin elección, el del sistema). Es automático: invierte los colores salvo imágenes,
+         lienzos (PDF, firmas) y las zonas marcadas con data-gt-original, que ya son oscuras. -->
+    <style>
+      html.gt-oscuro { background: #fff; filter: invert(1) hue-rotate(180deg); }
+      html.gt-oscuro :is(img, video, canvas, picture, iframe, [data-gt-original]) { filter: invert(1) hue-rotate(180deg); }
+      html.gt-oscuro [data-gt-original] :is(img, video, canvas, picture, iframe) { filter: none; }
+    </style>
+    <script>
+      (function () {
+        if (!/\.gesticotrans\.app$/.test(location.hostname)) return;
+        var m = document.cookie.match(/(?:^|; )gt_tema=(claro|oscuro)/);
+        var oscuro = m ? m[1] === 'oscuro' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (oscuro) document.documentElement.classList.add('gt-oscuro');
+      })();
+    </script>
+</head>
   <body>
     <!-- Pantalla de inicio de sesión -->
     <section id="login-screen" class="login-screen">
@@ -35,7 +51,7 @@
     </section>
 
     <div id="app" hidden>
-    <header class="topbar">
+    <header class="topbar" data-gt-original>
       <button id="btn-home" class="brand" type="button" title="Volver al inicio">
         <img src="/logo.png" alt="Firma" class="logo" />
         <div class="brand-text">
@@ -53,6 +69,11 @@
         </button>
         <button id="btn-confirm-fields" class="btn btn-primary" hidden>Confirmar</button>
         <button id="btn-send" class="btn btn-primary" disabled>Enviar</button>
+
+        <a id="btn-portal" class="btn btn-light" href="https://gesticotrans.app" title="Volver al Portal del Empleado" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+          <span class="btn-label">Portal</span>
+        </a>
 
         <div class="user-menu">
           <button id="btn-user" class="user-avatar" type="button" aria-haspopup="true" aria-expanded="false" title="Cuenta">

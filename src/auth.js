@@ -88,6 +88,7 @@ function startSession(data) {
 // En local (desarrollo) se mantiene el login de siempre.
 const SOLO_PORTAL = window.location.hostname.endsWith('.gesticotrans.app');
 const PORTAL_URL = 'https://gesticotrans.app';
+if (SOLO_PORTAL) document.getElementById('btn-portal')?.removeAttribute('hidden');
 
 // El pase se lee al cargar y se quita de la barra de direcciones.
 const LAUNCH = new URLSearchParams(window.location.search).get('portal_launch');
