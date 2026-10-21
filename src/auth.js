@@ -88,7 +88,12 @@ function startSession(data) {
 // En local (desarrollo) se mantiene el login de siempre.
 const SOLO_PORTAL = window.location.hostname.endsWith('.gesticotrans.app');
 const PORTAL_URL = 'https://gesticotrans.app';
-if (SOLO_PORTAL) document.getElementById('btn-portal')?.removeAttribute('hidden');
+// En *.gesticotrans.app no hay login propio: en lugar de "Salir" hay un botón
+// para volver al portal (que también cierra la sesión de Firma en esta pestaña).
+if (SOLO_PORTAL) {
+  document.getElementById('btn-portal')?.removeAttribute('hidden');
+  document.getElementById('btn-logout')?.setAttribute('hidden', '');
+}
 
 // El pase se lee al cargar y se quita de la barra de direcciones.
 const LAUNCH = new URLSearchParams(window.location.search).get('portal_launch');
@@ -192,6 +197,11 @@ export function initAuth() {
 
   // Cerrar sesión devuelve al Portal del Empleado.
   btnLogout.addEventListener('click', () => {
+    logout();
+    window.location.href = PORTAL_URL;
+  });
+  document.getElementById('btn-portal')?.addEventListener('click', (e) => {
+    e.preventDefault();
     logout();
     window.location.href = PORTAL_URL;
   });
