@@ -661,6 +661,30 @@ app.get(
 );
 
 /**
+ * Documentos cuyo PDF ya no existe en S3 (p. ej. se borró desde el panel de
+ * OVH): se borran también de la base de datos, para que desaparezcan de Mando,
+ * de Pendientes y de los avisos del portal a la vez. Solo cuenta un "no existe"
+ * claro de S3 (404); un error de conexión no borra nada.
+ */
+async function purgarSinPdf(ids = null) {
+  if (!isS3Enabled()) return 0;
+  const docs = ids
+    ? await all('SELECT id, filename, pdf_key FROM documents WHERE pdf_key IS NOT NULL AND id = ANY($1)', [ids])
+    : await all('SELECT id, filename, pdf_key FROM documents WHERE pdf_key IS NOT NULL');
+  let borrados = 0;
+  for (const d of docs) {
+    let existe = true;
+    try { existe = await pdfExists(d.pdf_key); } catch { /* sin conexión con S3: no se toca */ }
+    if (!existe) {
+      await run('DELETE FROM documents WHERE id = $1', [d.id]);
+      console.log(`Documento sin PDF en S3, borrado: ${d.filename} (${d.id})`);
+      borrados++;
+    }
+  }
+  return borrados;
+}
+
+/**
  * Firmas pendientes/realizadas de un usuario concreto, identificado por su
  * email (el mismo que se le puso al añadirlo como firmante). Se listan
  * todos los documentos donde ese email es firmante, desde el momento en
@@ -675,6 +699,7 @@ app.get(
     const email = (req.query.email || '').trim();
     if (!email) return res.status(400).json({ error: 'Falta el email.' });
 
+    await purgarSinPdf((await all('SELECT DISTINCT document_id FROM signers WHERE lower(email) = lower($1)', [email])).map((r) => r.document_id));
     const ownSigners = await all('SELECT * FROM signers WHERE lower(email) = lower($1)', [email]);
     if (ownSigners.length === 0) return res.json({ pending: [] });
 
@@ -766,17 +791,10 @@ app.get(
       [...params, limit, offset]
     );
 
-    // Filtrar documentos cuyo PDF ya no existe en S3
-    const existingDocs = await Promise.all(
-      documents.map(async (doc) => {
-        if (doc.pdf_key && isS3Enabled()) {
-          const exists = await pdfExists(doc.pdf_key);
-          if (!exists) return null;
-        }
-        return doc;
-      })
-    );
-    const visibleDocs = existingDocs.filter(Boolean);
+    // Documentos cuyo PDF ya no existe en S3: se borran del todo (ver purgarSinPdf).
+    await purgarSinPdf(documents.filter((d) => d.pdf_key).map((d) => d.id));
+    const quedan = new Set((await all('SELECT id FROM documents WHERE id = ANY($1)', [documents.map((d) => d.id)])).map((r) => r.id));
+    const visibleDocs = documents.filter((d) => quedan.has(d.id));
 
     const documentIds = visibleDocs.map((d) => d.id);
     const signersByDoc = groupBy(
@@ -877,6 +895,7 @@ app.get(
     if (!r.ok) return res.status(401).json({ error: 'Sin sesión del portal.' });
     const me = await r.json();
     if (!me.access?.firma) return res.status(403).json({ error: 'Sin acceso a Firma.' });
+    await purgarSinPdf((await all('SELECT id FROM documents WHERE created_by = $1', [me.username])).map((r) => r.id));
     const { n } = await one(
       `SELECT count(DISTINCT d.id)::int AS n
          FROM documents d JOIN send_log l ON l.document_id = d.id
@@ -929,6 +948,8 @@ app.get('*', (req, res, next) => {
 // Sin top-level await (Phusion Passenger carga este archivo con require()).
 async function main() {
   await initSchema();
+  purgarSinPdf().catch((err) => console.error('Limpieza de documentos sin PDF:', err.message));
+  setInterval(() => purgarSinPdf().catch(() => {}), 15 * 60 * 1000).unref();
   startReminders();
   app.listen(PORT, () => {
     console.log(`Firma API escuchando en http://localhost:${PORT}`);
