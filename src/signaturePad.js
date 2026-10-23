@@ -112,7 +112,9 @@ export function openSignaturePad(opts = {}) {
     btnClear.addEventListener('click', () => pad.clear());
     btnCancel.addEventListener('click', () => close(null));
     btnConfirm.addEventListener('click', () => {
-      if (pad.isEmpty()) {
+      // Vacía o casi (un toque suelto) no cuenta como firma
+      const puntos = pad.toData().reduce((n, trazo) => n + trazo.points.length, 0);
+      if (pad.isEmpty() || puntos < 10) {
         canvas.animate(
           [{ transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'translateX(0)' }],
           { duration: 150, iterations: 2 }

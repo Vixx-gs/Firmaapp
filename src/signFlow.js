@@ -197,45 +197,95 @@ export async function startSignFlow(token) {
   signerLabelEl.textContent = `Casilla asignada a ${data.signerLabel}`;
 
   const pages = await renderPdf(base64ToArrayBuffer(data.pdfBase64), signStage);
-  const targetPage = pages[data.field.pageIndex];
 
-  const scaleRatio = targetPage.cssScale / data.field.cssScale;
-  const box = document.createElement('div');
-  box.className = 'sig-field sign-target';
-  box.style.left = `${data.field.x * scaleRatio}px`;
-  box.style.top = `${data.field.y * scaleRatio}px`;
-  box.style.width = `${data.field.w * scaleRatio}px`;
-  box.style.height = `${data.field.h * scaleRatio}px`;
-  box.innerHTML = '<span class="label">Pulsa aquí para firmar</span>';
-  targetPage.layerEl.appendChild(box);
-
-  let signatureDataUrl = null;
-
-  box.addEventListener('click', async () => {
-    const dataUrl = await openSignaturePad({ simple: true });
-    if (!dataUrl) return;
-    signatureDataUrl = dataUrl;
-    box.classList.add('signed');
-    const label = box.querySelector('.label');
-    if (label) label.remove();
-    let img = box.querySelector('img');
-    if (!img) {
-      img = document.createElement('img');
-      box.appendChild(img);
-    }
-    img.src = dataUrl;
-    btnConfirm.disabled = false;
+  // Todas las casillas que le tocan a este firmante (puede haber una en cada página).
+  // Parpadean hasta que se firman y una flecha señala la siguiente que falta.
+  const casillas = (data.fields || [data.field]).filter((f) => !f.signed).map((f) => {
+    const page = pages[f.pageIndex];
+    const scaleRatio = page.cssScale / f.cssScale;
+    const box = document.createElement('div');
+    box.className = 'sig-field sign-target pendiente';
+    box.style.left = `${f.x * scaleRatio}px`;
+    box.style.top = `${f.y * scaleRatio}px`;
+    box.style.width = `${f.w * scaleRatio}px`;
+    box.style.height = `${f.h * scaleRatio}px`;
+    box.innerHTML = '<span class="label">Pulsa aquí para firmar</span>';
+    page.layerEl.appendChild(box);
+    return { id: f.id, box, firma: null };
   });
 
+  const flecha = document.createElement('div');
+  flecha.className = 'sign-flecha';
+  flecha.innerHTML = '<span>Firma aquí</span>⬇';
+
+  let firmaAdoptada = null;   // la primera firma se reutiliza en las demás casillas con un toque
+
+  function actualizar() {
+    const faltan = casillas.filter((c) => !c.firma);
+    const total = casillas.length;
+    btnConfirm.disabled = faltan.length > 0;
+    btnConfirm.textContent = faltan.length === 0
+      ? 'Enviar firma'
+      : total > 1 ? `Firmar (${total - faltan.length} de ${total})` : 'Firmar';
+    signerLabelEl.textContent = faltan.length === 0
+      ? 'Todo firmado. Pulsa «Enviar firma» para terminar.'
+      : total > 1
+        ? `Te faltan ${faltan.length} de ${total} casillas por firmar (${data.signerLabel}).`
+        : `Firma en la casilla señalada (${data.signerLabel}).`;
+    const siguiente = faltan[0];
+    if (siguiente) {
+      siguiente.box.appendChild(flecha);
+    } else {
+      flecha.remove();
+    }
+    return siguiente;
+  }
+
+  function irA(c) {
+    if (c) c.box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function ponerFirma(c, dataUrl) {
+    c.firma = dataUrl;
+    c.box.classList.add('signed');
+    c.box.classList.remove('pendiente');
+    c.box.querySelector('.label')?.remove();
+    let img = c.box.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      c.box.appendChild(img);
+    }
+    img.src = dataUrl;
+  }
+
+  for (const c of casillas) {
+    c.box.addEventListener('click', async () => {
+      // Casilla vacía y ya hay una firma hecha: se pone la misma. Para cambiarla, se pulsa una casilla firmada.
+      let dataUrl = !c.firma && firmaAdoptada ? firmaAdoptada : await openSignaturePad({ simple: true });
+      if (!dataUrl) return;
+      if (!firmaAdoptada || c.firma) firmaAdoptada = dataUrl;
+      ponerFirma(c, dataUrl);
+      irA(actualizar());
+    });
+  }
+  // Al entrar se lleva al cliente a la primera casilla
+  setTimeout(() => irA(actualizar()), 300);
+
   btnConfirm.addEventListener('click', async () => {
-    if (!signatureDataUrl) return;
+    const faltan = casillas.filter((c) => !c.firma);
+    if (faltan.length) {
+      showToast(`Te faltan ${faltan.length} casilla${faltan.length > 1 ? 's' : ''} por firmar.`);
+      irA(faltan[0]);
+      return;
+    }
     btnConfirm.disabled = true;
     btnConfirm.textContent = 'Enviando…';
     try {
+      const signatures = casillas.map((c) => ({ fieldId: c.id, signatureDataUrl: c.firma }));
       const res = await fetch(`/api/sign/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signatureDataUrl, otpSessionToken }),
+        body: JSON.stringify({ signatures, otpSessionToken }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Error al firmar.');
@@ -251,8 +301,7 @@ export async function startSignFlow(token) {
         if (st) st.textContent = 'Firma enviada correctamente. Ya puedes cerrar esta ventana.';
       }
     } catch (err) {
-      btnConfirm.disabled = false;
-      btnConfirm.textContent = 'Firmar';
+      actualizar();
       showToast(err.message);
     }
   });

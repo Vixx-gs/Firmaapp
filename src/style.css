@@ -640,6 +640,48 @@ body {
 .sign-signer-label { font-size: 13px; color: var(--muted); }
 .sig-field.sign-target { cursor: pointer; }
 
+/* Casillas que faltan por firmar: parpadean; la flecha señala la siguiente */
+.sig-field.sign-target.pendiente {
+  border: 3px dashed #ec4899;
+  animation: casilla-parpadeo 1.1s ease-in-out infinite;
+}
+@keyframes casilla-parpadeo {
+  0%, 100% { background: rgba(236, 72, 153, 0.08); box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.55); }
+  50% { background: rgba(236, 72, 153, 0.28); box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); }
+}
+.sign-flecha {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 26px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #ec4899;
+  font-size: 30px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: flecha-bote 0.9s ease-in-out infinite;
+  z-index: 5;
+}
+.sign-flecha span {
+  font-size: 12px;
+  font-weight: 700;
+  background: #ec4899;
+  color: #fff;
+  padding: 3px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+@keyframes flecha-bote {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sig-field.sign-target.pendiente, .sign-flecha { animation: none; }
+}
+
 /* ---------- Selector de firmante (popover) ---------- */
 .signer-picker {
   position: fixed;

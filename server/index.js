@@ -3,6 +3,7 @@ import cors from 'cors';
 import { randomUUID } from 'node:crypto';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { PDFDocument } from 'pdf-lib';
@@ -59,6 +60,56 @@ async function addAuditEvent(documentId, { signerId = null, action, ip = null, u
 function dataUrlToBytes(dataUrl) {
   const base64 = dataUrl.split(',')[1];
   return Buffer.from(base64, 'base64');
+}
+
+/** Casilla de firma tal como la recibe la pantalla de firma. */
+function casilla(f) {
+  return { id: f.id, pageIndex: f.page_index, x: f.x, y: f.y, w: f.w, h: f.h, cssScale: f.css_scale, signed: Boolean(f.signed_at) };
+}
+
+const MIN_PIXELES_FIRMA = 150; // un punto suelto o un garabato mínimo no cuentan como firma
+
+/**
+ * Cuenta los píxeles con tinta de la firma (PNG RGBA de 8 bits, como el que
+ * genera el lienzo de firma). Devuelve 0 si la imagen no se puede leer.
+ */
+function pixelesConTinta(png) {
+  try {
+    if (png.readUInt32BE(12) !== 0x49484452) return 0;               // IHDR
+    const ancho = png.readUInt32BE(16), alto = png.readUInt32BE(20);
+    if (png[24] !== 8 || png[25] !== 6) return 0;                        // 8 bits, RGBA
+    const idat = [];
+    for (let i = 8; i < png.length;) {
+      const len = png.readUInt32BE(i), tipo = png.toString('ascii', i + 4, i + 8);
+      if (tipo === 'IDAT') idat.push(png.subarray(i + 8, i + 8 + len));
+      i += 12 + len;
+    }
+    const raw = zlib.inflateSync(Buffer.concat(idat));
+    const fila = ancho * 4;
+    let prev = Buffer.alloc(fila), tinta = 0;
+    for (let y = 0; y < alto; y++) {
+      const filtro = raw[y * (fila + 1)];
+      const datos = raw.subarray(y * (fila + 1) + 1, (y + 1) * (fila + 1));
+      const cur = Buffer.alloc(fila);
+      for (let x = 0; x < fila; x++) {
+        const a = x >= 4 ? cur[x - 4] : 0, b = prev[x], c = x >= 4 ? prev[x - 4] : 0;
+        let p = 0;
+        if (filtro === 1) p = a;
+        else if (filtro === 2) p = b;
+        else if (filtro === 3) p = (a + b) >> 1;
+        else if (filtro === 4) {
+          const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+          p = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        }
+        cur[x] = (datos[x] + p) & 255;
+        if (x % 4 === 3 && cur[x] > 0) tinta++;
+      }
+      prev = cur;
+    }
+    return tinta;
+  } catch {
+    return 0;
+  }
 }
 
 // Roles que solo firman: no pueden enviar documentos (igual que en src/auth.js).
@@ -257,10 +308,12 @@ app.get(
 
     const doc = await one('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1', [log.document_id]);
     const signer = await one('SELECT * FROM signers WHERE id = $1', [log.signer_id]);
-    const field = await one('SELECT * FROM fields WHERE document_id = $1 AND signer_id = $2', [
-      log.document_id,
-      log.signer_id,
-    ]);
+    // Todas las casillas del firmante (puede tener una en cada página).
+    const fields = await all(
+      'SELECT * FROM fields WHERE document_id = $1 AND signer_id = $2 ORDER BY page_index, y, x',
+      [log.document_id, log.signer_id]
+    );
+    const field = fields.find((f) => !f.signed_at) || fields[0];
 
     if (!doc || !signer || !field) return res.status(404).json({ error: 'Datos no encontrados.' });
 
@@ -283,16 +336,10 @@ app.get(
       documentName: doc.filename,
       signerLabel: signer.label,
       signerEmail: signer.email || null,
-      alreadySigned: Boolean(field.signed_at),
+      alreadySigned: fields.every((f) => f.signed_at),
       pdfBase64: pdfBuf.toString('base64'),
-      field: {
-        pageIndex: field.page_index,
-        x: field.x,
-        y: field.y,
-        w: field.w,
-        h: field.h,
-        cssScale: field.css_scale,
-      },
+      field: casilla(field),
+      fields: fields.map(casilla),
     });
   })
 );
@@ -407,7 +454,10 @@ app.post(
   '/api/sign/:token',
   route(async (req, res) => {
     const { signatureDataUrl, otpSessionToken } = req.body;
-    if (typeof signatureDataUrl !== 'string' || !signatureDataUrl.includes(',')) {
+    // Una firma por casilla: [{ fieldId, signatureDataUrl }]. Las pantallas antiguas mandan solo
+    // signatureDataUrl, que vale únicamente si al firmante le queda una sola casilla.
+    const firmas = Array.isArray(req.body.signatures) ? req.body.signatures : null;
+    if (!firmas && (typeof signatureDataUrl !== 'string' || !signatureDataUrl.includes(','))) {
       return res.status(400).json({ error: 'Falta la firma.' });
     }
 
@@ -431,25 +481,46 @@ app.post(
         await client.query('SELECT id, filename, pdf, pdf_key FROM documents WHERE id = $1 FOR UPDATE', [log.document_id])
       ).rows[0];
       const currentSigner = (await client.query('SELECT * FROM signers WHERE id = $1', [log.signer_id])).rows[0];
-      const field = (
-        await client.query('SELECT * FROM fields WHERE document_id = $1 AND signer_id = $2', [
+      const pendientes = (
+        await client.query('SELECT * FROM fields WHERE document_id = $1 AND signer_id = $2 AND signed_at IS NULL', [
           log.document_id,
           log.signer_id,
         ])
-      ).rows[0];
-      if (!doc || !field) return { status: 404, error: 'Datos no encontrados.' };
-      if (field.signed_at) return { status: 409, error: 'Este documento ya está firmado por ti.' };
+      ).rows;
+      if (!doc) return { status: 404, error: 'Datos no encontrados.' };
+      if (!pendientes.length) return { status: 409, error: 'Este documento ya está firmado por ti.' };
+
+      // Tienen que venir firmadas TODAS las casillas pendientes, cada una con un trazo de verdad.
+      let porCasilla;
+      if (firmas) {
+        porCasilla = new Map(firmas.filter((f) => f && typeof f.signatureDataUrl === 'string').map((f) => [f.fieldId, f.signatureDataUrl]));
+      } else if (pendientes.length === 1) {
+        porCasilla = new Map([[pendientes[0].id, signatureDataUrl]]);
+      } else {
+        return { status: 400, error: 'Este documento tiene varias casillas para firmar. Recarga la página y fírmalas todas.' };
+      }
+      const faltan = pendientes.filter((f) => !porCasilla.has(f.id));
+      if (faltan.length) {
+        return { status: 400, error: `Faltan ${faltan.length} casilla${faltan.length > 1 ? 's' : ''} por firmar.` };
+      }
+      for (const f of pendientes) {
+        const png = dataUrlToBytes(porCasilla.get(f.id));
+        if (pixelesConTinta(png) < MIN_PIXELES_FIRMA) {
+          return { status: 400, error: 'Alguna casilla está vacía o con una firma demasiado pequeña. Firma de nuevo.' };
+        }
+      }
 
       const currentPdfBuffer = await getPdfBuffer(doc);
       const pdfDoc = await PDFDocument.load(currentPdfBuffer);
-      const page = pdfDoc.getPages()[field.page_index];
-      const png = await pdfDoc.embedPng(dataUrlToBytes(signatureDataUrl));
-
-      const xPt = field.x / field.css_scale;
-      const wPt = field.w / field.css_scale;
-      const hPt = field.h / field.css_scale;
-      const yPt = page.getSize().height - field.y / field.css_scale - hPt;
-      page.drawImage(png, { x: xPt, y: yPt, width: wPt, height: hPt });
+      for (const field of pendientes) {
+        const page = pdfDoc.getPages()[field.page_index];
+        const png = await pdfDoc.embedPng(dataUrlToBytes(porCasilla.get(field.id)));
+        const xPt = field.x / field.css_scale;
+        const wPt = field.w / field.css_scale;
+        const hPt = field.h / field.css_scale;
+        const yPt = page.getSize().height - field.y / field.css_scale - hPt;
+        page.drawImage(png, { x: xPt, y: yPt, width: wPt, height: hPt });
+      }
 
       const signedPdf = Buffer.from(await pdfDoc.save());
       const signedAt = nowIso();
@@ -460,7 +531,7 @@ app.post(
       } else {
         await client.query('UPDATE documents SET pdf = $1 WHERE id = $2', [signedPdf, doc.id]);
       }
-      await client.query('UPDATE fields SET signed_at = $1 WHERE id = $2', [signedAt, field.id]);
+      await client.query('UPDATE fields SET signed_at = $1 WHERE id = ANY($2)', [signedAt, pendientes.map((f) => f.id)]);
       await client.query(
         'UPDATE send_log SET signed_at = $1, sign_ip = $2, sign_ua = $3 WHERE id = $4',
         [signedAt, signIp, signUa, log.id]
