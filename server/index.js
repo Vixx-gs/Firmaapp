@@ -906,6 +906,52 @@ app.get(
   })
 );
 
+// ── Borradores: documentos que otra app (Contratos) deja preparados ─────────
+// Contratos genera el PDF y lo deja aquí con los datos del firmante; después
+// abre Firma con ?borrador=<id> y Firma lo carga para colocar las firmas.
+// Solo lo puede leer la misma persona que lo creó, y se borran a las 24 h.
+const BORRADOR_MAX_BYTES = 20 * 1024 * 1024;
+
+/** POST /api/borradores { nombreArchivo, pdfBase64, firmante, origen } → { id }. Autenticado con la cookie del portal. */
+app.post(
+  '/api/borradores',
+  route(async (req, res) => {
+    const cookie = readCookie(req, PORTAL_COOKIE);
+    if (!cookie) return res.status(401).json({ error: 'Sin sesión del portal.' });
+    const r = await fetch(`${PORTAL_URL}/api/me`, { headers: { cookie: `${PORTAL_COOKIE}=${cookie}` }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(401).json({ error: 'Sin sesión del portal.' });
+    const me = await r.json();
+    if (!me.access?.firma) return res.status(403).json({ error: 'No tienes acceso a Firma.' });
+
+    const { nombreArchivo, pdfBase64, firmante, origen } = req.body || {};
+    const pdf = Buffer.from(String(pdfBase64 || ''), 'base64');
+    if (!pdf.length || pdf.subarray(0, 4).toString() !== '%PDF') return res.status(400).json({ error: 'El documento no es un PDF.' });
+    if (pdf.length > BORRADOR_MAX_BYTES) return res.status(413).json({ error: 'El documento es demasiado grande.' });
+    const limpio = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const datosFirmante = firmante && typeof firmante === 'object'
+      ? { nombre: limpio(firmante.nombre, 120), email: limpio(firmante.email, 160), telefono: limpio(firmante.telefono, 30) }
+      : null;
+    const id = randomUUID();
+    const nombre = (limpio(nombreArchivo, 200) || 'documento.pdf').replace(/[\\/]/g, '-');
+    await run(
+      'INSERT INTO borradores (id, filename, pdf, firmante, created_by, origen) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, nombre.toLowerCase().endsWith('.pdf') ? nombre : `${nombre}.pdf`, pdf, datosFirmante ? JSON.stringify(datosFirmante) : null, me.username, limpio(origen, 40) || null]
+    );
+    res.status(201).json({ id });
+  })
+);
+
+/** GET /api/borradores/:id → { nombreArchivo, pdfBase64, firmante } (solo quien lo creó). */
+app.get(
+  '/api/borradores/:id',
+  requireAuth,
+  route(async (req, res) => {
+    const b = await one("SELECT * FROM borradores WHERE id = $1 AND created_at > now() - interval '24 hours'", [req.params.id]);
+    if (!b || b.created_by !== req.user.username) return res.status(404).json({ error: 'El documento ya no está disponible. Vuelve a enviarlo desde Contratos.' });
+    res.json({ nombreArchivo: b.filename, pdfBase64: Buffer.from(b.pdf).toString('base64'), firmante: b.firmante, origen: b.origen });
+  })
+);
+
 /** POST /api/auth/login: retirado (403). Se mantiene para que el frontend antiguo reciba un mensaje claro. */
 app.post(
   '/api/auth/login',
@@ -949,6 +995,9 @@ app.get('*', (req, res, next) => {
 async function main() {
   await initSchema();
   purgarSinPdf().catch((err) => console.error('Limpieza de documentos sin PDF:', err.message));
+  const limpiarBorradores = () => run("DELETE FROM borradores WHERE created_at < now() - interval '24 hours'").catch(() => {});
+  limpiarBorradores();
+  setInterval(limpiarBorradores, 60 * 60 * 1000).unref();
   setInterval(() => purgarSinPdf().catch(() => {}), 15 * 60 * 1000).unref();
   startReminders();
   app.listen(PORT, () => {

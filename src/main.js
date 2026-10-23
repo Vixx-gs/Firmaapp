@@ -5,7 +5,7 @@ import { initProfile } from './profile.js';
 import { renderPdf } from './pdfViewer.js';
 import { SignatureField } from './fields.js';
 import { openSignerPicker } from './signerPicker.js';
-import { addSigner, resetSigners, getSigners } from './signers.js';
+import { addSigner, addSignerPrefilled, resetSigners, getSigners } from './signers.js';
 import { getSignToken, startSignFlow } from './signFlow.js';
 import { loadRegistry } from './registry.js';
 import { loadMando } from './mando.js';
@@ -144,6 +144,27 @@ window.addEventListener('drop', (e) => {
   const file = e.dataTransfer?.files?.[0];
   if (file) loadFile(file);
 });
+
+// Documento enviado desde Contratos: Firma se abre con ?borrador=<id>.
+const BORRADOR = new URLSearchParams(window.location.search).get('borrador');
+if (BORRADOR) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('borrador');
+  window.history.replaceState(null, '', url);
+}
+document.addEventListener('firma:loggedIn', async () => {
+  if (!BORRADOR) return;
+  try {
+    const res = await apiFetch(`/api/borradores/${encodeURIComponent(BORRADOR)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'No se pudo cargar el documento.');
+    const bytes = Uint8Array.from(atob(data.pdfBase64), (c) => c.charCodeAt(0));
+    await loadFile(new File([bytes], data.nombreArchivo, { type: 'application/pdf' }));
+    if (data.firmante?.nombre || data.firmante?.email || data.firmante?.telefono) addSignerPrefilled(data.firmante);
+  } catch (err) {
+    showToast(err.message);
+  }
+}, { once: true });
 
 async function loadFile(file) {
   const name = file.name.toLowerCase();

@@ -270,6 +270,18 @@ export function addSigner() {
   openModal(signer, { isNew: true });
 }
 
+/**
+ * Añade un firmante con datos ya conocidos (p. ej. el arrendatario de un
+ * contrato que llega desde Contratos) y abre su ficha para revisarlos.
+ */
+export function addSignerPrefilled({ nombre = '', email = '', telefono = '' } = {}) {
+  signerSeq++;
+  const signer = { id: signerSeq, label: `Firmante ${signers.length + 1}`, email, phone: telefono, username: nombre };
+  signers.push(signer);
+  renderChip(signer);
+  openModal(signer, { isNew: true });
+}
+
 /** Lista actual de firmantes confirmados, para asignarlos a campos de firma. */
 export function getSigners() {
   return signers.map((s) => ({ ...s }));

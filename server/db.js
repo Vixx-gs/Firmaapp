@@ -144,6 +144,15 @@ const SCHEMA = `
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS reminder_14_sent_at TIMESTAMPTZ;
   ALTER TABLE send_log ADD COLUMN IF NOT EXISTS expired_at TIMESTAMPTZ;
   ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE IF NOT EXISTS borradores (
+    id TEXT PRIMARY KEY,
+    filename TEXT NOT NULL,
+    pdf BYTEA NOT NULL,
+    firmante JSONB,
+    created_by TEXT NOT NULL,
+    origen TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
   ALTER TABLE otp_codes ADD COLUMN IF NOT EXISTS sends INTEGER NOT NULL DEFAULT 1;
 `;
 
