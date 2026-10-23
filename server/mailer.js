@@ -9,18 +9,41 @@ const LOGO_CID = 'firma-logo';
 // Leídas de forma diferida (no al cargar el módulo) para que dotenv.config()
 // pueda ejecutarse primero en index.js con un `import` normal, sin depender
 // de top-level await (incompatible con cómo Phusion Passenger carga la app).
+//
+// Con SMTP_HOST/SMTP_USER/SMTP_PASSWORD se envía desde un buzón del propio
+// dominio (p. ej. firma@gesticotrans.app por smtp.ionos.es): el correo sale
+// firmado con DKIM y SPF del mismo dominio que el enlace de firma, y no cae en
+// spam. Sin ellas se usa la cuenta de Gmail de siempre.
 let transporter = null;
 function getTransporter() {
-  const GMAIL_USER = process.env.GMAIL_USER;
-  const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD) return null;
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-    });
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
+      const port = Number(process.env.SMTP_PORT || 587);
+      transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port,
+        secure: port === 465,
+        requireTLS: port !== 465,
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      });
+    } else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      });
+    }
   }
   return transporter;
+}
+
+/** Dirección que envía (y a la que se responde). */
+function remitente() {
+  return process.env.SMTP_USER && process.env.SMTP_HOST ? process.env.SMTP_USER : process.env.GMAIL_USER;
+}
+
+function cabeceraFrom() {
+  const nombre = process.env.MAIL_FROM_NAME || 'Gesticotrans · Firma electrónica';
+  return `"${nombre}" <${remitente()}>`;
 }
 
 /**
@@ -94,7 +117,7 @@ export async function sendSignRequestEmail({ to, signLink, documentName }) {
   const transporter = getTransporter();
   if (!transporter) {
     throw new Error(
-      'Envío de email no configurado: faltan GMAIL_USER / GMAIL_APP_PASSWORD en el .env del servidor.'
+      'Envío de email no configurado: faltan SMTP_* (o GMAIL_USER / GMAIL_APP_PASSWORD) en el .env del servidor.'
     );
   }
 
@@ -107,8 +130,8 @@ export async function sendSignRequestEmail({ to, signLink, documentName }) {
   const text = `Hola,\n\nTienes una firma pendiente en el documento "${documentName}".\nFírmalo aquí: ${signLink}\n\nSi no esperabas este correo, puedes ignorarlo.`;
 
   await transporter.sendMail({
-    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
-    replyTo: process.env.GMAIL_USER,
+    from: cabeceraFrom(),
+    replyTo: remitente(),
     to,
     subject: `Firma pendiente: ${documentName}`,
     text,
@@ -140,7 +163,7 @@ export async function sendOtpEmail({ to, otp, documentName }) {
   `;
 
   await transporter.sendMail({
-    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
+    from: cabeceraFrom(),
     to,
     subject: `Tu código de verificación: ${otp}`,
     text: `Código de verificación para firmar "${documentName}": ${otp}\n\nCaduca en 10 minutos.`,
@@ -160,7 +183,7 @@ export async function sendReminderEmail({ to, signLink, documentName, type }) {
   const subjectMap = {
     1: `Recordatorio: tienes una firma pendiente — ${documentName}`,
     7: `Recordatorio (7 días): firma pendiente — ${documentName}`,
-    14: `⚠️ Último aviso: queda 1 día para firmar — ${documentName}`,
+    14: `Último aviso: queda 1 día para firmar — ${documentName}`,
   };
   const bodyMap = {
     1: `<p>Hola,</p><p>Te recordamos que tienes pendiente la firma del documento <strong>${documentName}</strong>.</p><p>Si ya firmaste, puedes ignorar este correo.</p>`,
@@ -169,13 +192,13 @@ export async function sendReminderEmail({ to, signLink, documentName, type }) {
   };
 
   await transporter.sendMail({
-    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
-    replyTo: process.env.GMAIL_USER,
+    from: cabeceraFrom(),
+    replyTo: remitente(),
     to,
     subject: subjectMap[type],
     text: `Tienes una firma pendiente en "${documentName}". Firma aquí: ${signLink}`,
     html: brandedHtml({
-      title: type === 14 ? '⚠️ Último aviso de firma' : 'Recordatorio de firma pendiente',
+      title: type === 14 ? 'Último aviso de firma' : 'Recordatorio de firma pendiente',
       bodyHtml: bodyMap[type],
       ctaLabel: 'Firmar ahora',
       ctaUrl: signLink,
@@ -193,7 +216,7 @@ export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer, 
   const transporter = getTransporter();
   if (!transporter) {
     throw new Error(
-      'Envío de email no configurado: faltan GMAIL_USER / GMAIL_APP_PASSWORD en el .env del servidor.'
+      'Envío de email no configurado: faltan SMTP_* (o GMAIL_USER / GMAIL_APP_PASSWORD) en el .env del servidor.'
     );
   }
 
@@ -218,8 +241,8 @@ export async function sendCompletedDocumentEmail({ to, documentName, pdfBuffer, 
   }
 
   await transporter.sendMail({
-    from: `"Firma Electrónica" <${process.env.GMAIL_USER}>`,
-    replyTo: process.env.GMAIL_USER,
+    from: cabeceraFrom(),
+    replyTo: remitente(),
     to,
     subject: `Documento firmado: ${documentName}`,
     text,
